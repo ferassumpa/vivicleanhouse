@@ -2,6 +2,8 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { AppShell } from '@/components/AppShell'
 import {
   Button,
@@ -18,6 +20,7 @@ import {
   type CleaningChecklistRow,
   type PhotoKind,
 } from '@/lib/types'
+import { fillTemplate, openWhatsApp } from '@/lib/whatsapp'
 
 type PhotoRow = { id: string; kind: PhotoKind; storage_path: string; url?: string | null }
 
@@ -29,12 +32,14 @@ export default function EmployeeJobPage() {
   const [checklist, setChecklist] = useState<CleaningChecklistRow[]>([])
   const [message, setMessage] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [notifyWhatsApp, setNotifyWhatsApp] = useState(true)
+  const [templates, setTemplates] = useState<Record<string, string>>({})
 
   async function load() {
     const { data } = await supabase
       .from('cleanings')
       .select(
-        '*, properties(id,label,address,access_notes,building_id, buildings(id,name,address,entry_rules,doorman_name,doorman_phone,syndic_name,syndic_phone,caretaker_name,caretaker_phone)), clients(id,full_name)'
+        '*, properties(id,label,address,access_notes,building_id, buildings(id,name,address,entry_rules,doorman_name,doorman_phone,syndic_name,syndic_phone,caretaker_name,caretaker_phone)), clients(id,full_name,phone)'
       )
       .eq('id', params.id)
       .maybeSingle()
@@ -46,13 +51,14 @@ export default function EmployeeJobPage() {
       await ensureCleaningChecklist(cleaning.id, cleaning.property_id)
     }
 
-    const [photosRes, checklistRes] = await Promise.all([
+    const [photosRes, checklistRes, templatesRes] = await Promise.all([
       supabase.from('cleaning_photos').select('*').eq('cleaning_id', params.id),
       supabase
         .from('cleaning_checklist')
         .select('*')
         .eq('cleaning_id', params.id)
         .order('created_at'),
+      supabase.from('notification_templates').select('key, body').eq('active', true),
     ])
 
     const withUrls = await Promise.all(
@@ -63,6 +69,12 @@ export default function EmployeeJobPage() {
     )
     setPhotos(withUrls)
     setChecklist((checklistRes.data as CleaningChecklistRow[]) || [])
+
+    const map: Record<string, string> = {}
+    for (const t of templatesRes.data || []) {
+      map[t.key as string] = t.body as string
+    }
+    setTemplates(map)
   }
 
   useEffect(() => {
@@ -70,33 +82,75 @@ export default function EmployeeJobPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
 
+  function buildVars(at: Date = new Date()) {
+    if (!job) {
+      return { cliente: '', imovel: '', hora: '', endereco: '', predio: '' }
+    }
+    return {
+      cliente: job.clients?.full_name || 'cliente',
+      imovel: job.properties?.label || 'imóvel',
+      hora: format(at, "HH:mm 'de' dd/MM", { locale: ptBR }),
+      endereco: job.properties?.address || job.properties?.buildings?.address || '',
+      predio: job.properties?.buildings?.name || '',
+    }
+  }
+
+  function maybeOpenWhatsApp(templateKey: string) {
+    if (!notifyWhatsApp || !job) return
+    const body = templates[templateKey]
+    if (!body) {
+      setMessage(
+        (prev) =>
+          (prev ? `${prev} ` : '') +
+          'Modelo de WhatsApp não encontrado — rode o SQL 006 ou cadastre em Mensagens.'
+      )
+      return
+    }
+    const text = fillTemplate(body, buildVars())
+    const ok = openWhatsApp(job.clients?.phone, text)
+    if (!ok) {
+      setMessage(
+        (prev) =>
+          (prev ? `${prev} ` : '') +
+          'Cliente sem telefone cadastrado — WhatsApp não aberto. Atualize o telefone do cliente na admin.'
+      )
+    }
+  }
+
   async function setStatus(status: Cleaning['status'], extra: Record<string, unknown> = {}) {
-    if (!job) return
+    if (!job) return false
     const { error } = await supabase
       .from('cleanings')
       .update({ status, updated_at: new Date().toISOString(), ...extra })
       .eq('id', job.id)
     if (error) {
       setMessage(error.message)
-      return
+      return false
     }
     await load()
+    return true
   }
 
   async function checkIn() {
-    await setStatus('in_progress', { started_at: new Date().toISOString() })
-    setMessage('Entrada registrada. Tire a foto pré-faxina.')
+    setMessage(null)
+    const ok = await setStatus('in_progress', { started_at: new Date().toISOString() })
+    if (!ok) return
+    setMessage('Faxina iniciada no sistema. Tire a foto pré-faxina.')
+    maybeOpenWhatsApp('cleaning_started')
   }
 
   async function checkOut() {
+    setMessage(null)
     const missingBefore = photos.filter((p) => p.kind === 'before').length === 0
     const missingAfter = photos.filter((p) => p.kind === 'after').length === 0
     if (missingBefore || missingAfter) {
       setMessage('Envie ao menos uma foto pré e uma foto pós antes de concluir.')
       return
     }
-    await setStatus('done', { ended_at: new Date().toISOString() })
-    setMessage('Saída registrada. Faxina concluída.')
+    const ok = await setStatus('done', { ended_at: new Date().toISOString() })
+    if (!ok) return
+    setMessage('Faxina concluída no sistema.')
+    maybeOpenWhatsApp('cleaning_finished')
   }
 
   async function uploadPhoto(kind: PhotoKind, file: File) {
@@ -148,6 +202,7 @@ export default function EmployeeJobPage() {
   const before = photos.filter((p) => p.kind === 'before')
   const after = photos.filter((p) => p.kind === 'after')
   const building = job.properties?.buildings
+  const clientPhone = job.clients?.phone
 
   return (
     <AppShell title={job.properties?.label || 'Faxina'}>
@@ -158,6 +213,13 @@ export default function EmployeeJobPage() {
             <p className="text-sm text-[var(--muted)]">
               {formatCleaningWhen(job.scheduled_start)}
             </p>
+            {clientPhone ? (
+              <p className="mt-1 text-sm text-[var(--muted)]">WhatsApp: {clientPhone}</p>
+            ) : (
+              <p className="mt-1 text-sm text-rose-600">
+                Cliente sem telefone — cadastre na admin para avisar no WhatsApp.
+              </p>
+            )}
             {building?.name && (
               <p className="mt-1 text-sm font-medium text-[var(--navy)]">
                 Prédio: {building.name}
@@ -183,18 +245,6 @@ export default function EmployeeJobPage() {
                 {building.doorman_phone ? ` · ${building.doorman_phone}` : ''}
               </p>
             )}
-            {building.caretaker_name && (
-              <p>
-                Zelador: {building.caretaker_name}
-                {building.caretaker_phone ? ` · ${building.caretaker_phone}` : ''}
-              </p>
-            )}
-            {building.syndic_name && (
-              <p>
-                Síndico: {building.syndic_name}
-                {building.syndic_phone ? ` · ${building.syndic_phone}` : ''}
-              </p>
-            )}
           </div>
         )}
 
@@ -209,12 +259,32 @@ export default function EmployeeJobPage() {
         <p className="mb-4 rounded-xl bg-[var(--soft)] px-3 py-2 text-sm">{message}</p>
       )}
 
+      <Card className="mb-4">
+        <label className="flex cursor-pointer items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={notifyWhatsApp}
+            onChange={(e) => setNotifyWhatsApp(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-[var(--pink-deep)]"
+          />
+          <span>
+            <span className="font-semibold text-[var(--navy)]">
+              Avisar cliente no WhatsApp
+            </span>
+            <span className="mt-0.5 block text-[var(--muted)]">
+              Ao iniciar ou concluir, abre o WhatsApp com a mensagem salva pela admin
+              (você só confirma o envio). Grátis via wa.me.
+            </span>
+          </span>
+        </label>
+      </Card>
+
       <div className="mb-6 flex flex-wrap gap-2">
         {job.status === 'confirmed' && (
-          <Button onClick={() => void checkIn()}>Registrar entrada</Button>
+          <Button onClick={() => void checkIn()}>Iniciei a faxina</Button>
         )}
         {job.status === 'in_progress' && (
-          <Button onClick={() => void checkOut()}>Registrar saída e concluir</Button>
+          <Button onClick={() => void checkOut()}>Concluí a faxina</Button>
         )}
         <Button variant="secondary" onClick={() => router.push('/employee')}>
           Voltar

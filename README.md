@@ -20,6 +20,7 @@ Stack: **Next.js**, **Supabase**, **Vercel (gru1)**, **Capacitor**, UI em **PT-B
    - `docs/sql/003_auto_create_client.sql`
    - `docs/sql/004_buildings_and_checklist.sql`
    - `docs/sql/005_service_packages.sql`
+   - `docs/sql/006_whatsapp_templates.sql`
 2. Copie `.env.example` → `.env.local` e preencha as chaves.
 3. Em **Authentication → URL Configuration** no Supabase, adicione:
    - Site URL: `http://localhost:3000` (e depois a URL do Vercel)
