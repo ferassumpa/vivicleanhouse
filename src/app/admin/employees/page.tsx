@@ -3,11 +3,13 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { AppShell } from '@/components/AppShell'
 import { Button, Card, EmptyState, Input, Label } from '@/components/ui'
+import { deleteErrorMessage } from '@/lib/adminCrud'
 import { supabase } from '@/lib/supabase'
 import { formatBRL, type Employee } from '@/lib/types'
 
 export default function AdminEmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [pay, setPay] = useState('80')
@@ -15,10 +17,7 @@ export default function AdminEmployeesPage() {
   const [message, setMessage] = useState<string | null>(null)
 
   async function load() {
-    const { data } = await supabase
-      .from('employees')
-      .select('*')
-      .order('full_name')
+    const { data } = await supabase.from('employees').select('*').order('full_name')
     setEmployees((data as Employee[]) || [])
   }
 
@@ -26,25 +25,41 @@ export default function AdminEmployeesPage() {
     void load()
   }, [])
 
+  function resetForm() {
+    setEditingId(null)
+    setFullName('')
+    setPhone('')
+    setPay('80')
+  }
+
+  function startEdit(e: Employee) {
+    setEditingId(e.id)
+    setFullName(e.full_name)
+    setPhone(e.phone || '')
+    setPay(String(e.pay_per_cleaning ?? 0))
+    setMessage(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
     setMessage(null)
-    const { error } = await supabase.from('employees').insert({
+    const payload = {
       full_name: fullName.trim(),
       phone: phone.trim() || null,
       pay_per_cleaning: Number(pay) || 0,
-      active: true,
-    })
+    }
+    const { error } = editingId
+      ? await supabase.from('employees').update(payload).eq('id', editingId)
+      : await supabase.from('employees').insert({ ...payload, active: true })
     setSaving(false)
     if (error) {
       setMessage(error.message)
       return
     }
-    setFullName('')
-    setPhone('')
-    setPay('80')
-    setMessage('Funcionária cadastrada.')
+    setMessage(editingId ? 'Funcionária atualizada.' : 'Funcionária cadastrada.')
+    resetForm()
     await load()
   }
 
@@ -53,11 +68,36 @@ export default function AdminEmployeesPage() {
     await load()
   }
 
+  async function removeEmployee(emp: Employee) {
+    if (!window.confirm(`Excluir a funcionária "${emp.full_name}"?`)) return
+    const { error } = await supabase.from('employees').delete().eq('id', emp.id)
+    if (error) {
+      await supabase.from('employees').update({ active: false }).eq('id', emp.id)
+      setMessage(
+        deleteErrorMessage(error, 'funcionária') + ' Ela foi desativada em vez de excluída.'
+      )
+      await load()
+      return
+    }
+    setMessage('Funcionária excluída.')
+    if (editingId === emp.id) resetForm()
+    await load()
+  }
+
   return (
-    <AppShell title="Funcionárias">
+    <AppShell title="Funcionárias" subtitle="Cadastre, edite, desative ou exclua.">
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         <Card>
-          <h2 className="mb-3 font-semibold">Nova funcionária</h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="font-semibold">
+              {editingId ? 'Editar funcionária' : 'Nova funcionária'}
+            </h2>
+            {editingId && (
+              <Button type="button" variant="ghost" onClick={resetForm}>
+                Cancelar
+              </Button>
+            )}
+          </div>
           <p className="mb-3 text-xs text-[var(--muted)]">
             Ela pode fazer várias faxinas no dia e ganha por faxina.
           </p>
@@ -83,7 +123,7 @@ export default function AdminEmployeesPage() {
             </div>
             {message && <p className="text-sm text-[var(--muted)]">{message}</p>}
             <Button type="submit" disabled={saving}>
-              {saving ? 'Salvando…' : 'Salvar'}
+              {saving ? 'Salvando…' : editingId ? 'Salvar alterações' : 'Cadastrar'}
             </Button>
           </form>
         </Card>
@@ -97,17 +137,23 @@ export default function AdminEmployeesPage() {
                 <div>
                   <p className="font-medium">
                     {e.full_name}{' '}
-                    {!e.active && (
-                      <span className="text-xs text-rose-600">(inativa)</span>
-                    )}
+                    {!e.active && <span className="text-xs text-rose-600">(inativa)</span>}
                   </p>
                   <p className="text-sm text-[var(--muted)]">
                     {e.phone || 'Sem telefone'} · {formatBRL(e.pay_per_cleaning)} / faxina
                   </p>
                 </div>
-                <Button variant="secondary" onClick={() => void toggleActive(e)}>
-                  {e.active ? 'Desativar' : 'Ativar'}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" type="button" onClick={() => startEdit(e)}>
+                    Editar
+                  </Button>
+                  <Button variant="secondary" type="button" onClick={() => void toggleActive(e)}>
+                    {e.active ? 'Desativar' : 'Ativar'}
+                  </Button>
+                  <Button variant="danger" type="button" onClick={() => void removeEmployee(e)}>
+                    Excluir
+                  </Button>
+                </div>
               </Card>
             ))
           )}
