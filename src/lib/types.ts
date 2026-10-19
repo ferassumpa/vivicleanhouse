@@ -50,6 +50,22 @@ export type Building = {
   created_at?: string
 }
 
+export type ServicePackage = {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  duration_minutes: number
+  cleanings_count: number
+  is_monthly: boolean
+  includes_laundry: boolean
+  includes_dishes: boolean
+  includes_ironing: boolean
+  extras: string | null
+  active: boolean
+  created_at?: string
+}
+
 export type Property = {
   id: string
   client_id: string
@@ -63,9 +79,11 @@ export type Property = {
   price_package: number | null
   price_fixed: number | null
   estimated_duration_minutes: number
+  service_package_id?: string | null
   active: boolean
   clients?: Pick<Client, 'id' | 'full_name'> | null
   buildings?: Pick<Building, 'id' | 'name' | 'address' | 'entry_rules' | 'doorman_name' | 'doorman_phone' | 'syndic_name' | 'syndic_phone' | 'caretaker_name' | 'caretaker_phone'> | null
+  service_packages?: Pick<ServicePackage, 'id' | 'name' | 'price' | 'cleanings_count' | 'is_monthly'> | null
 }
 
 export type AvailabilitySlot = {

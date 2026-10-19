@@ -12,11 +12,13 @@ import {
   type Client,
   type PricingType,
   type Property,
+  type ServicePackage,
 } from '@/lib/types'
 
 const empty = {
   clientId: '',
   buildingId: '',
+  packageId: '',
   label: '',
   propertyType: 'estudio',
   address: '',
