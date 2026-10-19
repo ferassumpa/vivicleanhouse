@@ -32,6 +32,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { href: '/admin/packages', label: 'Pacotes', icon: <Package size={18} /> },
     { href: '/admin/checklist', label: 'Checklist', icon: <ListChecks size={18} /> },
     { href: '/admin/schedule', label: 'Agenda', icon: <CalendarDays size={18} /> },
+    { href: '/employee', label: 'Minhas faxinas', icon: <ClipboardList size={18} /> },
     { href: '/admin/messages', label: 'Mensagens', icon: <MessageCircle size={18} /> },
     { href: '/admin/finance', label: 'Finanças', icon: <Wallet size={18} /> },
   ],
