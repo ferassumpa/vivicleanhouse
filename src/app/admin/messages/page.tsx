@@ -14,7 +14,7 @@ type Template = {
 }
 
 const HINT =
-  'Variáveis: {cliente} {imovel} {hora} {endereco} {predio}. A funcionária pode enviar no WhatsApp ao iniciar/concluir.'
+  'Variáveis: {cliente} {imovel} {hora} {endereco} {predio}. Pode usar emoji (ex.: 😊). Se aparecer “?”, rode o SQL 007 ou cole a carinha de novo e salve.'
 
 export default function AdminMessagesPage() {
   const [templates, setTemplates] = useState<Template[]>([])

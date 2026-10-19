@@ -21,6 +21,7 @@ Stack: **Next.js**, **Supabase**, **Vercel (gru1)**, **Capacitor**, UI em **PT-B
    - `docs/sql/004_buildings_and_checklist.sql`
    - `docs/sql/005_service_packages.sql`
    - `docs/sql/006_whatsapp_templates.sql`
+   - `docs/sql/007_fix_whatsapp_emoji.sql` (se o emoji da mensagem virar “?”)
 2. Copie `.env.example` → `.env.local` e preencha as chaves.
 3. Em **Authentication → URL Configuration** no Supabase, adicione:
    - Site URL: `http://localhost:3000` (e depois a URL do Vercel)
