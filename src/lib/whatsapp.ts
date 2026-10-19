@@ -11,7 +11,6 @@ export function normalizePhoneForWa(phone: string | null | undefined): string | 
   if (!phone) return null
   let digits = phone.replace(/\D/g, '')
   if (!digits) return null
-  // 10–11 dígitos = Brasil sem DDI
   if (digits.length === 10 || digits.length === 11) {
     digits = `55${digits}`
   }
@@ -27,14 +26,25 @@ export function fillTemplate(body: string, vars: NotifyVars): string {
     .replaceAll('{predio}', vars.predio || '')
 }
 
+/**
+ * api.whatsapp.com + URLSearchParams preserva emoji (UTF-8) melhor que
+ * montar wa.me na mão — evita a carinha virar "?" no app.
+ */
 export function buildWaMeUrl(phoneDigits: string, text: string): string {
-  return `https://wa.me/${phoneDigits}?text=${encodeURIComponent(text)}`
+  const params = new URLSearchParams()
+  params.set('phone', phoneDigits)
+  params.set('text', text)
+  return `https://api.whatsapp.com/send?${params.toString()}`
 }
 
 export function openWhatsApp(phone: string | null | undefined, text: string): boolean {
   const digits = normalizePhoneForWa(phone)
   if (!digits) return false
   const url = buildWaMeUrl(digits, text)
-  window.open(url, '_blank', 'noopener,noreferrer')
+  // location.assign costuma manter encoding melhor que window.open em alguns browsers
+  const opened = window.open(url, '_blank', 'noopener,noreferrer')
+  if (!opened) {
+    window.location.href = url
+  }
   return true
 }
