@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { roleHomePath, useAuth } from '@/contexts/AuthContext'
@@ -70,6 +71,13 @@ export default function LoginPage() {
             {submitting ? 'Entrando…' : 'Entrar'}
           </Button>
         </form>
+
+        <p className="mt-5 text-center text-sm text-[var(--muted)]">
+          Ainda não tem conta?{' '}
+          <Link href="/auth/signup" className="font-medium text-[var(--brand)] hover:underline">
+            Criar cadastro
+          </Link>
+        </p>
       </Card>
     </div>
   )

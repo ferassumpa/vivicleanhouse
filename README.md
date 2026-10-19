@@ -17,6 +17,7 @@ Stack: **Next.js**, **Supabase**, **Vercel (gru1)**, **Capacitor**, UI em **PT-B
 1. Crie um projeto no Supabase e rode, nesta ordem:
    - `docs/sql/001_schema.sql`
    - `docs/sql/002_seed_materials.sql`
+   - `docs/sql/003_auto_create_client.sql`
 2. Copie `.env.example` → `.env.local` e preencha as chaves.
 3. No Supabase Auth, crie usuários e ajuste `profiles.role` (`admin` | `employee` | `client`).
 4. Vincule `clients.user_id` / `employees.user_id` ao `auth.users.id`.
