@@ -15,12 +15,14 @@ import {
   StatusBadge,
 } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
+import { deleteErrorMessage } from '@/lib/adminCrud'
 import { combineDateAndTime, resolvePropertyPrice } from '@/lib/pricing'
 import { supabase } from '@/lib/supabase'
 import {
   formatBRL,
   formatCleaningWhen,
   type Cleaning,
+  type CleaningStatus,
   type Client,
   type Employee,
   type Property,
@@ -35,15 +37,17 @@ export default function AdminSchedulePage() {
   const [assignMap, setAssignMap] = useState<Record<string, string>>({})
   const [message, setMessage] = useState<string | null>(null)
 
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [clientId, setClientId] = useState('')
   const [propertyId, setPropertyId] = useState('')
   const [day, setDay] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [startTime, setStartTime] = useState('09:00')
   const [employeeId, setEmployeeId] = useState('')
+  const [status, setStatus] = useState<CleaningStatus>('confirmed')
   const [saving, setSaving] = useState(false)
 
   const clientProperties = useMemo(
-    () => properties.filter((p) => p.client_id === clientId),
+    () => properties.filter((p) => p.client_id === clientId && p.active !== false),
     [properties, clientId]
   )
 
@@ -73,6 +77,12 @@ export default function AdminSchedulePage() {
     return data.id as string
   }
 
+  async function resolveEmployeeId(raw: string): Promise<string | null> {
+    if (!raw) return null
+    if (raw === '__admin__') return ensureAdminAsEmployee()
+    return raw
+  }
+
   async function load() {
     const [cleaningsRes, employeesRes, clientsRes, propsRes] = await Promise.all([
       supabase
@@ -80,17 +90,16 @@ export default function AdminSchedulePage() {
         .select(
           '*, properties(id,label,address,building_id, buildings(id,name)), clients(id,full_name), employees(id,full_name)'
         )
-        .neq('status', 'cancelled')
-        .order('scheduled_start', { ascending: true }),
+        .order('scheduled_start', { ascending: false })
+        .limit(80),
       supabase.from('employees').select('*').eq('active', true).order('full_name'),
       supabase.from('clients').select('*').order('full_name'),
-      supabase.from('properties').select('*, clients(id,full_name)').eq('active', true).order('label'),
+      supabase.from('properties').select('*, clients(id,full_name)').order('label'),
     ])
     setCleanings((cleaningsRes.data as Cleaning[]) || [])
     setEmployees((employeesRes.data as Employee[]) || [])
     setClients((clientsRes.data as Client[]) || [])
-    const props = (propsRes.data as Property[]) || []
-    setProperties(props)
+    setProperties((propsRes.data as Property[]) || [])
     if (!clientId && clientsRes.data?.[0]) {
       setClientId(clientsRes.data[0].id)
     }
@@ -102,12 +111,35 @@ export default function AdminSchedulePage() {
   }, [])
 
   useEffect(() => {
+    if (editingId) return
     const first = clientProperties[0]
     if (first) setPropertyId(first.id)
     else setPropertyId('')
-  }, [clientId, clientProperties])
+  }, [clientId, clientProperties, editingId])
 
-  async function createCleaning(e: FormEvent) {
+  function resetForm() {
+    setEditingId(null)
+    setDay(format(new Date(), 'yyyy-MM-dd'))
+    setStartTime('09:00')
+    setEmployeeId('')
+    setStatus('confirmed')
+    if (clients[0]) setClientId(clients[0].id)
+  }
+
+  function startEdit(c: Cleaning) {
+    const start = new Date(c.scheduled_start)
+    setEditingId(c.id)
+    setClientId(c.client_id)
+    setPropertyId(c.property_id)
+    setDay(format(start, 'yyyy-MM-dd'))
+    setStartTime(format(start, 'HH:mm'))
+    setEmployeeId(c.employee_id || '')
+    setStatus(c.status === 'cancelled' ? 'confirmed' : c.status)
+    setMessage(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function saveCleaning(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
     setMessage(null)
@@ -120,14 +152,10 @@ export default function AdminSchedulePage() {
       return
     }
 
-    let assignedEmployeeId = employeeId || null
-    if (employeeId === '__admin__') {
-      const id = await ensureAdminAsEmployee()
-      if (!id) {
-        setSaving(false)
-        return
-      }
-      assignedEmployeeId = id
+    const assignedEmployeeId = await resolveEmployeeId(employeeId)
+    if (employeeId && !assignedEmployeeId) {
+      setSaving(false)
+      return
     }
 
     let pay = 0
@@ -143,12 +171,41 @@ export default function AdminSchedulePage() {
     const quote = resolvePropertyPrice(property)
     const scheduledStart = combineDateAndTime(day, startTime)
 
+    if (editingId) {
+      const { error } = await supabase
+        .from('cleanings')
+        .update({
+          property_id: property.id,
+          client_id: client.id,
+          employee_id: assignedEmployeeId,
+          scheduled_start: scheduledStart,
+          status,
+          pricing_type: quote.pricing_type,
+          unit_price: quote.unit_price,
+          hours: quote.hours,
+          revenue_amount: quote.revenue_amount,
+          employee_pay_amount: pay,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editingId)
+
+      setSaving(false)
+      if (error) {
+        setMessage(error.message)
+        return
+      }
+      setMessage('Faxina atualizada.')
+      resetForm()
+      await load()
+      return
+    }
+
     const { error } = await supabase.from('cleanings').insert({
       property_id: property.id,
       client_id: client.id,
       employee_id: assignedEmployeeId,
       scheduled_start: scheduledStart,
-      status: 'confirmed',
+      status: assignedEmployeeId ? 'confirmed' : 'confirmed',
       pricing_type: quote.pricing_type,
       unit_price: quote.unit_price,
       hours: quote.hours,
@@ -157,16 +214,16 @@ export default function AdminSchedulePage() {
       notes: 'Agendada pela admin',
     })
 
+    setSaving(false)
     if (error) {
       setMessage(error.message)
-      setSaving(false)
       return
     }
 
     setMessage(
       `Faxina agendada: ${format(new Date(scheduledStart), "EEEE dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
     )
-    setSaving(false)
+    resetForm()
     await load()
   }
 
@@ -176,18 +233,21 @@ export default function AdminSchedulePage() {
       setMessage('Selecione quem vai fazer a faxina.')
       return
     }
-    if (employeePick === '__admin__') {
-      const id = await ensureAdminAsEmployee()
-      if (!id) return
-      employeePick = id
-    }
-    const emp = employees.find((e) => e.id === employeePick)
+    const assigned = await resolveEmployeeId(employeePick)
+    if (!assigned) return
+
+    const { data: empRow } = await supabase
+      .from('employees')
+      .select('pay_per_cleaning')
+      .eq('id', assigned)
+      .maybeSingle()
+
     const { error } = await supabase
       .from('cleanings')
       .update({
         status: 'confirmed',
-        employee_id: employeePick,
-        employee_pay_amount: Number(emp?.pay_per_cleaning || 0),
+        employee_id: assigned,
+        employee_pay_amount: Number(empRow?.pay_per_cleaning || 0),
         updated_at: new Date().toISOString(),
       })
       .eq('id', cleaning.id)
@@ -201,10 +261,35 @@ export default function AdminSchedulePage() {
   }
 
   async function cancelCleaning(id: string) {
-    await supabase
+    if (!window.confirm('Cancelar esta faxina?')) return
+    const { error } = await supabase
       .from('cleanings')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
       .eq('id', id)
+    if (error) {
+      setMessage(error.message)
+      return
+    }
+    setMessage('Faxina cancelada.')
+    if (editingId === id) resetForm()
+    await load()
+  }
+
+  async function deleteCleaning(c: Cleaning) {
+    if (
+      !window.confirm(
+        `Excluir permanentemente a faxina de "${c.properties?.label || 'imóvel'}" em ${formatCleaningWhen(c.scheduled_start)}?`
+      )
+    ) {
+      return
+    }
+    const { error } = await supabase.from('cleanings').delete().eq('id', c.id)
+    if (error) {
+      setMessage(deleteErrorMessage(error, 'faxina'))
+      return
+    }
+    setMessage('Faxina excluída.')
+    if (editingId === c.id) resetForm()
     await load()
   }
 
@@ -212,6 +297,7 @@ export default function AdminSchedulePage() {
   const upcoming = cleanings.filter((c) =>
     ['confirmed', 'in_progress'].includes(c.status)
   )
+  const history = cleanings.filter((c) => ['done', 'cancelled'].includes(c.status))
 
   const executorOptions = (
     <>
@@ -225,10 +311,36 @@ export default function AdminSchedulePage() {
     </>
   )
 
+  function CleaningActions({ c }: { c: Cleaning }) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusBadge status={c.status} />
+        <Button type="button" variant="secondary" onClick={() => startEdit(c)}>
+          Editar
+        </Button>
+        {c.employee_id && ['confirmed', 'in_progress'].includes(c.status) && (
+          <Link href={`/employee/jobs/${c.id}`}>
+            <Button type="button" variant="secondary">
+              Abrir
+            </Button>
+          </Link>
+        )}
+        {c.status !== 'cancelled' && (
+          <Button type="button" variant="ghost" onClick={() => void cancelCleaning(c.id)}>
+            Cancelar
+          </Button>
+        )}
+        <Button type="button" variant="danger" onClick={() => void deleteCleaning(c)}>
+          Excluir
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <AppShell
       title="Agenda"
-      subtitle="Agende faxinas para clientes (dia + hora de início) ou aprove solicitações pendentes."
+      subtitle="Só a admin agenda, edita e exclui faxinas. Faxineiras só executam (iniciar/concluir)."
     >
       {message && (
         <p className="mb-4 rounded-xl bg-[var(--soft)] px-3 py-2 text-sm">{message}</p>
@@ -236,8 +348,17 @@ export default function AdminSchedulePage() {
 
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <Card>
-          <h2 className="mb-3 font-semibold">Agendar faxina (admin)</h2>
-          <form className="space-y-3" onSubmit={createCleaning}>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="font-semibold">
+              {editingId ? 'Editar faxina' : 'Agendar faxina'}
+            </h2>
+            {editingId && (
+              <Button type="button" variant="ghost" onClick={resetForm}>
+                Cancelar edição
+              </Button>
+            )}
+          </div>
+          <form className="space-y-3" onSubmit={saveCleaning}>
             <div>
               <Label>Cliente</Label>
               <Select required value={clientId} onChange={(e) => setClientId(e.target.value)}>
@@ -260,6 +381,7 @@ export default function AdminSchedulePage() {
                 {clientProperties.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label}
+                    {!p.active ? ' (inativo)' : ''}
                   </option>
                 ))}
               </Select>
@@ -284,8 +406,27 @@ export default function AdminSchedulePage() {
                 {executorOptions}
               </Select>
             </div>
+            {editingId && (
+              <div>
+                <Label>Status</Label>
+                <Select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as CleaningStatus)}
+                >
+                  <option value="requested">Pendente</option>
+                  <option value="confirmed">Confirmada</option>
+                  <option value="in_progress">Em andamento</option>
+                  <option value="done">Concluída</option>
+                  <option value="cancelled">Cancelada</option>
+                </Select>
+              </div>
+            )}
             <Button type="submit" disabled={saving || !clientId || !propertyId}>
-              {saving ? 'Salvando…' : 'Agendar faxina'}
+              {saving
+                ? 'Salvando…'
+                : editingId
+                  ? 'Salvar alterações'
+                  : 'Agendar faxina'}
             </Button>
           </form>
         </Card>
@@ -299,16 +440,13 @@ export default function AdminSchedulePage() {
               <div className="space-y-2">
                 {pending.map((c) => (
                   <Card key={c.id} className="space-y-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="font-medium">
-                          {c.properties?.label} · {c.clients?.full_name}
-                        </p>
-                        <p className="text-sm text-[var(--muted)]">
-                          {formatCleaningWhen(c.scheduled_start)} · {formatBRL(c.revenue_amount)}
-                        </p>
-                      </div>
-                      <StatusBadge status={c.status} />
+                    <div>
+                      <p className="font-medium">
+                        {c.properties?.label} · {c.clients?.full_name}
+                      </p>
+                      <p className="text-sm text-[var(--muted)]">
+                        {formatCleaningWhen(c.scheduled_start)} · {formatBRL(c.revenue_amount)}
+                      </p>
                     </div>
                     <div className="flex flex-wrap items-end gap-2">
                       <div className="min-w-[200px] flex-1">
@@ -324,9 +462,7 @@ export default function AdminSchedulePage() {
                         </Select>
                       </div>
                       <Button onClick={() => void confirmCleaning(c)}>Aprovar</Button>
-                      <Button variant="ghost" onClick={() => void cancelCleaning(c.id)}>
-                        Recusar
-                      </Button>
+                      <CleaningActions c={c} />
                     </div>
                   </Card>
                 ))}
@@ -341,7 +477,7 @@ export default function AdminSchedulePage() {
             ) : (
               <div className="space-y-2">
                 {upcoming.map((c) => (
-                  <Card key={c.id} className="flex flex-wrap items-center justify-between gap-3">
+                  <Card key={c.id} className="space-y-3">
                     <div>
                       <p className="font-medium">{c.properties?.label}</p>
                       <p className="text-sm text-[var(--muted)]">
@@ -352,16 +488,31 @@ export default function AdminSchedulePage() {
                           : ''}
                       </p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={c.status} />
-                      {c.employee_id && (
-                        <Link href={`/employee/jobs/${c.id}`}>
-                          <Button type="button" variant="secondary">
-                            Abrir faxina
-                          </Button>
-                        </Link>
-                      )}
+                    <CleaningActions c={c} />
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-lg font-semibold">Histórico (concluídas / canceladas)</h2>
+            {history.length === 0 ? (
+              <EmptyState text="Sem histórico recente." />
+            ) : (
+              <div className="space-y-2">
+                {history.slice(0, 20).map((c) => (
+                  <Card key={c.id} className="space-y-3">
+                    <div>
+                      <p className="font-medium">
+                        {c.properties?.label} · {c.clients?.full_name}
+                      </p>
+                      <p className="text-sm text-[var(--muted)]">
+                        {formatCleaningWhen(c.scheduled_start)}
+                        {c.employees?.full_name ? ` · ${c.employees.full_name}` : ''}
+                      </p>
                     </div>
+                    <CleaningActions c={c} />
                   </Card>
                 ))}
               </div>
