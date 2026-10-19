@@ -119,7 +119,7 @@ export type Cleaning = {
   properties?: Pick<Property, 'id' | 'label' | 'address' | 'access_notes' | 'building_id'> & {
     buildings?: Property['buildings']
   } | null
-  clients?: Pick<Client, 'id' | 'full_name'> | null
+  clients?: Pick<Client, 'id' | 'full_name' | 'phone'> | null
   employees?: Pick<Employee, 'id' | 'full_name'> | null
 }
 
