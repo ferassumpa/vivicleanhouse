@@ -228,7 +228,7 @@ export default function AdminSchedulePage() {
   }
 
   async function confirmCleaning(cleaning: Cleaning) {
-    let employeePick = assignMap[cleaning.id]
+    const employeePick = assignMap[cleaning.id]
     if (!employeePick) {
       setMessage('Selecione quem vai fazer a faxina.')
       return
