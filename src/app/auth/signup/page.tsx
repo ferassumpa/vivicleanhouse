@@ -3,8 +3,16 @@
 import Link from 'next/link'
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Lock, Mail, User } from 'lucide-react'
+import { AuthShell } from '@/components/auth/AuthShell'
+import {
+  Alert,
+  Field,
+  PasswordInput,
+  PrimaryButton,
+  TextInput,
+} from '@/components/auth/AuthFields'
 import { roleHomePath, useAuth } from '@/contexts/AuthContext'
-import { Button, Card, Input, Label } from '@/components/ui'
 import { supabase } from '@/lib/supabase'
 
 export default function SignupPage() {
@@ -14,9 +22,12 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  const passwordsMatch = !!confirmPassword && password === confirmPassword
+  const passwordsMismatch = !!confirmPassword && password !== confirmPassword
 
   useEffect(() => {
     if (!loading && user && profile) {
@@ -26,7 +37,7 @@ export default function SignupPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    setError(null)
+    setError('')
 
     if (password !== confirmPassword) {
       setError('As senhas não coincidem.')
@@ -46,6 +57,7 @@ export default function SignupPage() {
           full_name: fullName.trim(),
           role: 'client',
         },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
 
@@ -55,14 +67,12 @@ export default function SignupPage() {
       return
     }
 
-    // Se o projeto exige confirmação de e-mail, não haverá sessão imediata
     if (!data.session) {
       setSuccess(true)
       setSubmitting(false)
       return
     }
 
-    // Garante vínculo em clients (além do trigger SQL 003, se já aplicado)
     if (data.user) {
       await supabase.from('clients').upsert(
         {
@@ -79,85 +89,97 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-md">
-        <p className="font-display text-3xl text-[var(--brand)]">ViviClenaer</p>
-        <p className="mt-1 text-sm text-[var(--muted)]">
-          Crie sua conta de cliente para agendar faxinas.
+    <AuthShell
+      eyebrow="Crie sua conta"
+      title="Começar no ViviClenaer"
+      subtitle="Cadastro de cliente para ver imóveis e solicitar faxinas."
+      back={{ href: '/auth/login', label: 'Já tenho conta' }}
+      footer={
+        <p className="text-sm text-slate-500">
+          Já tem conta?{' '}
+          <Link
+            href="/auth/login"
+            className="font-semibold text-[var(--teal-dark)] hover:underline"
+          >
+            Fazer login
+          </Link>
         </p>
-
-        {success ? (
-          <div className="mt-6 space-y-4">
-            <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-              Conta criada. Verifique seu e-mail para confirmar o cadastro e depois faça
-              login.
-            </p>
+      }
+    >
+      {success ? (
+        <Alert kind="success">
+          Conta criada. Verifique seu e-mail para confirmar o cadastro e depois
+          faça login.
+          <div className="mt-3">
             <Link
               href="/auth/login"
-              className="inline-flex text-sm font-medium text-[var(--brand)] hover:underline"
+              className="font-semibold text-emerald-800 underline"
             >
               Ir para o login
             </Link>
           </div>
-        ) : (
-          <form className="mt-6 space-y-3" onSubmit={onSubmit}>
-            <div>
-              <Label>Nome completo</Label>
-              <Input
-                required
-                autoComplete="name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>E-mail</Label>
-              <Input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Senha</Label>
-              <Input
-                type="password"
-                required
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>Confirmar senha</Label>
-              <Input
-                type="password"
-                required
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
-            {error && (
-              <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                {error}
-              </p>
-            )}
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? 'Criando…' : 'Criar conta'}
-            </Button>
-          </form>
-        )}
+        </Alert>
+      ) : (
+        <form onSubmit={onSubmit} className="space-y-5">
+          {error && <Alert kind="error">{error}</Alert>}
 
-        <p className="mt-5 text-center text-sm text-[var(--muted)]">
-          Já tem conta?{' '}
-          <Link href="/auth/login" className="font-medium text-[var(--brand)] hover:underline">
-            Entrar
-          </Link>
-        </p>
-      </Card>
-    </div>
+          <Field label="Nome completo">
+            <TextInput
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Seu nome"
+              icon={<User className="h-4 w-4" />}
+              autoComplete="name"
+            />
+          </Field>
+
+          <Field label="E-mail">
+            <TextInput
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seu-email@exemplo.com"
+              icon={<Mail className="h-4 w-4" />}
+              autoComplete="email"
+            />
+          </Field>
+
+          <Field label="Senha" hint="Mínimo de 6 caracteres">
+            <PasswordInput
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Crie uma senha"
+              icon={<Lock className="h-4 w-4" />}
+              minLength={6}
+              autoComplete="new-password"
+            />
+          </Field>
+
+          <Field
+            label="Confirmar senha"
+            error={passwordsMismatch ? 'As senhas não coincidem' : undefined}
+            hint={passwordsMatch ? '✓ As senhas coincidem' : undefined}
+          >
+            <PasswordInput
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Digite a senha novamente"
+              icon={<Lock className="h-4 w-4" />}
+              invalid={!!passwordsMismatch}
+              minLength={6}
+              autoComplete="new-password"
+            />
+          </Field>
+
+          <PrimaryButton type="submit" loading={submitting} disabled={!!passwordsMismatch}>
+            {submitting ? 'Criando…' : 'Criar conta'}
+          </PrimaryButton>
+        </form>
+      )}
+    </AuthShell>
   )
 }

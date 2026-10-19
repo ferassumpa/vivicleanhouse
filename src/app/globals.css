@@ -1,21 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f3f7f5;
+  --navy: #0c2a26;
+  --teal: #14a3a0;
+  --teal-dark: #0f766e;
+  --sand: #e8f0ec;
+  --ink: #12201c;
+  --muted: #5c6f68;
+  --line: #d5e2db;
   --panel: #ffffff;
-  --ink: #14201c;
-  --muted: #5b6b64;
-  --line: #d7e3dd;
-  --soft: #e8f1ec;
-  --brand: #0f766e;
-  --brand-dark: #0b5f59;
-  --accent: #c4a35a;
-  --bg-glow: radial-gradient(1200px 500px at 10% -10%, #cfe8e0 0%, transparent 55%),
-    radial-gradient(900px 400px at 100% 0%, #efe6c9 0%, transparent 45%),
+  --soft: #eef5f1;
+  --danger: #c2410c;
+  --bg: #f4f8f6;
+  --bg-glow: radial-gradient(1100px 520px at 8% -8%, #c5e4dc 0%, transparent 55%),
+    radial-gradient(900px 420px at 100% 0%, #dce9e3 0%, transparent 48%),
     var(--bg);
 }
 
 @theme inline {
+  --color-navy: var(--navy);
+  --color-teal: var(--teal);
+  --color-teal-dark: var(--teal-dark);
   --color-background: var(--bg);
   --color-foreground: var(--ink);
   --font-sans: var(--font-body);
@@ -31,4 +36,17 @@ body {
 
 .font-display {
   font-family: var(--font-display), ui-serif, Georgia, serif;
+}
+
+.text-navy {
+  color: var(--navy);
+}
+.text-teal {
+  color: var(--teal);
+}
+.bg-navy {
+  background-color: var(--navy);
+}
+.bg-teal {
+  background-color: var(--teal);
 }

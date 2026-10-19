@@ -21,7 +21,7 @@ export function Card({
             }
           : undefined
       }
-      className={`rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_1px_0_rgba(15,23,42,0.04)] ${className}`}
+      className={`rounded-2xl border border-[var(--line)] bg-white/95 p-4 shadow-[0_1px_0_rgba(15,23,42,0.03)] ${className}`}
     >
       {children}
     </div>
@@ -37,7 +37,7 @@ export function Button({
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
 }) {
   const styles = {
-    primary: 'bg-[var(--brand)] text-white hover:bg-[var(--brand-dark)]',
+    primary: 'bg-[var(--navy)] text-white hover:bg-[#163f39]',
     secondary: 'bg-[var(--soft)] text-[var(--ink)] hover:bg-[var(--line)]',
     danger: 'bg-rose-600 text-white hover:bg-rose-700',
     ghost: 'bg-transparent text-[var(--muted)] hover:bg-[var(--soft)]',
@@ -45,7 +45,7 @@ export function Button({
 
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition disabled:opacity-50 ${styles} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition disabled:opacity-50 ${styles} ${className}`}
       {...props}
     >
       {children}
@@ -57,7 +57,7 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none ring-[var(--brand)] focus:ring-2 ${props.className || ''}`}
+      className={`w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5 text-sm outline-none ring-[var(--teal)] transition focus:ring-2 ${props.className || ''}`}
     />
   )
 }
@@ -66,7 +66,7 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none ring-[var(--brand)] focus:ring-2 ${props.className || ''}`}
+      className={`w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5 text-sm outline-none ring-[var(--teal)] focus:ring-2 ${props.className || ''}`}
     />
   )
 }
@@ -75,25 +75,29 @@ export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
   return (
     <textarea
       {...props}
-      className={`w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none ring-[var(--brand)] focus:ring-2 ${props.className || ''}`}
+      className={`w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5 text-sm outline-none ring-[var(--teal)] focus:ring-2 ${props.className || ''}`}
     />
   )
 }
 
 export function Label({ children }: { children: React.ReactNode }) {
-  return <label className="mb-1 block text-xs font-medium text-[var(--muted)]">{children}</label>
+  return (
+    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+      {children}
+    </label>
+  )
 }
 
 export function StatusBadge({ status }: { status: CleaningStatus }) {
   const colors: Record<CleaningStatus, string> = {
     requested: 'bg-amber-100 text-amber-800',
     confirmed: 'bg-sky-100 text-sky-800',
-    in_progress: 'bg-violet-100 text-violet-800',
+    in_progress: 'bg-teal-100 text-teal-800',
     done: 'bg-emerald-100 text-emerald-800',
     cancelled: 'bg-slate-200 text-slate-600',
   }
   return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[status]}`}>
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${colors[status]}`}>
       {STATUS_LABELS[status]}
     </span>
   )
@@ -101,7 +105,7 @@ export function StatusBadge({ status }: { status: CleaningStatus }) {
 
 export function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-[var(--line)] px-4 py-10 text-center text-sm text-[var(--muted)]">
+    <div className="rounded-2xl border border-dashed border-[var(--line)] bg-white/60 px-4 py-12 text-center text-sm text-[var(--muted)]">
       {text}
     </div>
   )

@@ -8,9 +8,9 @@ import {
   ClipboardList,
   Home,
   LogOut,
+  Sparkles,
   Users,
   Wallet,
-  Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import type { UserRole } from '@/lib/types'
@@ -37,11 +37,19 @@ const NAV: Record<UserRole, NavItem[]> = {
   ],
 }
 
+const ROLE_LABEL: Record<UserRole, string> = {
+  admin: 'Administração',
+  employee: 'Funcionária',
+  client: 'Cliente',
+}
+
 export function AppShell({
   title,
+  subtitle,
   children,
 }: {
   title: string
+  subtitle?: string
   children: React.ReactNode
 }) {
   const { profile, signOut, role } = useAuth()
@@ -52,28 +60,30 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col md:flex-row">
-        <aside className="border-b border-[var(--line)] bg-[var(--panel)] md:w-56 md:border-b-0 md:border-r">
-          <div className="flex items-center justify-between gap-3 px-4 py-4 md:block">
+        <aside className="border-b border-[var(--line)] bg-white/90 backdrop-blur md:w-60 md:border-b-0 md:border-r">
+          <div className="flex items-center justify-between gap-3 px-4 py-5 md:block">
             <div>
-              <p className="font-display text-xl tracking-tight text-[var(--brand)]">
-                ViviClenaer
+              <p className="font-display text-xl tracking-tight text-[var(--navy)]">
+                Vivi<span className="text-[var(--teal-dark)]">Clenaer</span>
               </p>
-              <p className="text-xs text-[var(--muted)]">
+              <p className="mt-0.5 text-xs text-[var(--muted)]">
                 {profile?.full_name || 'Usuário'}
+                {role ? ` · ${ROLE_LABEL[role]}` : ''}
               </p>
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-[var(--muted)] hover:bg-[var(--soft)] md:mt-4"
+              className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-sm text-[var(--muted)] transition hover:bg-[var(--soft)] md:mt-4"
               onClick={async () => {
                 await signOut()
-                router.replace('/auth/login')
+                router.replace('/')
               }}
             >
               <LogOut size={16} /> Sair
             </button>
           </div>
-          <nav className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:overflow-visible md:px-3">
+
+          <nav className="flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:overflow-visible md:px-3 md:pb-6">
             {items.map((item) => {
               const active =
                 pathname === item.href ||
@@ -85,9 +95,9 @@ export function AppShell({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-sm transition ${
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                     active
-                      ? 'bg-[var(--brand)] text-white'
+                      ? 'bg-[var(--navy)] text-white shadow-sm'
                       : 'text-[var(--ink)] hover:bg-[var(--soft)]'
                   }`}
                 >
@@ -99,9 +109,14 @@ export function AppShell({
           </nav>
         </aside>
 
-        <main className="flex-1 px-4 py-5 md:px-8 md:py-7">
-          <header className="mb-6">
-            <h1 className="font-display text-2xl tracking-tight md:text-3xl">{title}</h1>
+        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+          <header className="mb-7">
+            <h1 className="font-display text-2xl tracking-tight text-[var(--navy)] md:text-3xl">
+              {title}
+            </h1>
+            {subtitle && (
+              <p className="mt-1 text-sm text-[var(--muted)]">{subtitle}</p>
+            )}
           </header>
           {children}
         </main>

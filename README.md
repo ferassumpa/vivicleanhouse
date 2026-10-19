@@ -19,9 +19,27 @@ Stack: **Next.js**, **Supabase**, **Vercel (gru1)**, **Capacitor**, UI em **PT-B
    - `docs/sql/002_seed_materials.sql`
    - `docs/sql/003_auto_create_client.sql`
 2. Copie `.env.example` → `.env.local` e preencha as chaves.
-3. No Supabase Auth, crie usuários e ajuste `profiles.role` (`admin` | `employee` | `client`).
-4. Vincule `clients.user_id` / `employees.user_id` ao `auth.users.id`.
-5. `npm install && npm run dev`
+3. Em **Authentication → URL Configuration** no Supabase, adicione:
+   - Site URL: `http://localhost:3000` (e depois a URL do Vercel)
+   - Redirect URLs:
+     - `http://localhost:3000/auth/callback`
+     - `http://localhost:3000/auth/reset-password`
+     - `https://SEU_DOMINIO/auth/callback`
+     - `https://SEU_DOMINIO/auth/reset-password`
+4. Cadastro público cria conta **cliente**. Admin/funcionária: crie o usuário e ajuste `profiles.role`.
+5. Vincule `employees.user_id` ao usuário da funcionária.
+6. `npm install && npm run dev`
+
+### Auth (rotas)
+
+| Rota | Função |
+|------|--------|
+| `/` | Landing (Criar conta / Entrar) |
+| `/auth/login` | Login |
+| `/auth/signup` | Criar conta |
+| `/auth/forgot-password` | Pedir link de recuperação |
+| `/auth/reset-password` | Definir nova senha |
+| `/auth/callback` | Retorno de confirmação de e-mail |
 
 ## Vercel
 
