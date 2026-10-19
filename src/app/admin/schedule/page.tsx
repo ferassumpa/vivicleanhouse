@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AppShell } from '@/components/AppShell'
@@ -14,84 +14,178 @@ import {
   StatusBadge,
 } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
-import { combineDateAndTime } from '@/lib/pricing'
+import { combineDateAndTime, resolvePropertyPrice } from '@/lib/pricing'
 import { supabase } from '@/lib/supabase'
 import {
   formatBRL,
-  type AvailabilitySlot,
+  formatCleaningWhen,
   type Cleaning,
+  type Client,
   type Employee,
+  type Property,
 } from '@/lib/types'
 
 export default function AdminSchedulePage() {
-  const { user } = useAuth()
-  const [slots, setSlots] = useState<AvailabilitySlot[]>([])
+  const { user, profile } = useAuth()
   const [cleanings, setCleanings] = useState<Cleaning[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
-  const [slotDate, setSlotDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [startTime, setStartTime] = useState('09:00')
-  const [endTime, setEndTime] = useState('12:00')
-  const [slotEmployee, setSlotEmployee] = useState('')
+  const [clients, setClients] = useState<Client[]>([])
+  const [properties, setProperties] = useState<Property[]>([])
   const [assignMap, setAssignMap] = useState<Record<string, string>>({})
   const [message, setMessage] = useState<string | null>(null)
 
+  const [clientId, setClientId] = useState('')
+  const [propertyId, setPropertyId] = useState('')
+  const [day, setDay] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [startTime, setStartTime] = useState('09:00')
+  const [employeeId, setEmployeeId] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const clientProperties = useMemo(
+    () => properties.filter((p) => p.client_id === clientId),
+    [properties, clientId]
+  )
+
+  async function ensureAdminAsEmployee(): Promise<string | null> {
+    if (!user) return null
+    const { data: existing } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (existing) return existing.id as string
+
+    const { data, error } = await supabase
+      .from('employees')
+      .insert({
+        user_id: user.id,
+        full_name: profile?.full_name || 'Admin',
+        pay_per_cleaning: 0,
+        active: true,
+      })
+      .select('id')
+      .single()
+    if (error) {
+      setMessage(error.message)
+      return null
+    }
+    return data.id as string
+  }
+
   async function load() {
-    const [slotsRes, cleaningsRes, employeesRes] = await Promise.all([
-      supabase
-        .from('availability_slots')
-        .select('*')
-        .gte('slot_date', format(new Date(), 'yyyy-MM-dd'))
-        .order('slot_date')
-        .order('start_time'),
+    const [cleaningsRes, employeesRes, clientsRes, propsRes] = await Promise.all([
       supabase
         .from('cleanings')
         .select(
-          '*, properties(id,label,address), clients(id,full_name), employees(id,full_name)'
+          '*, properties(id,label,address,building_id, buildings(id,name)), clients(id,full_name), employees(id,full_name)'
         )
         .neq('status', 'cancelled')
         .order('scheduled_start', { ascending: true }),
       supabase.from('employees').select('*').eq('active', true).order('full_name'),
+      supabase.from('clients').select('*').order('full_name'),
+      supabase.from('properties').select('*, clients(id,full_name)').eq('active', true).order('label'),
     ])
-    setSlots((slotsRes.data as AvailabilitySlot[]) || [])
     setCleanings((cleaningsRes.data as Cleaning[]) || [])
     setEmployees((employeesRes.data as Employee[]) || [])
+    setClients((clientsRes.data as Client[]) || [])
+    const props = (propsRes.data as Property[]) || []
+    setProperties(props)
+    if (!clientId && clientsRes.data?.[0]) {
+      setClientId(clientsRes.data[0].id)
+    }
   }
 
   useEffect(() => {
     void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function createSlot(e: FormEvent) {
+  useEffect(() => {
+    const first = clientProperties[0]
+    if (first) setPropertyId(first.id)
+    else setPropertyId('')
+  }, [clientId, clientProperties])
+
+  async function createCleaning(e: FormEvent) {
     e.preventDefault()
+    setSaving(true)
     setMessage(null)
-    const { error } = await supabase.from('availability_slots').insert({
-      slot_date: slotDate,
-      start_time: startTime,
-      end_time: endTime,
-      employee_id: slotEmployee || null,
-      is_open: true,
-      created_by: user?.id ?? null,
-    })
-    if (error) {
-      setMessage(error.message)
+
+    const property = properties.find((p) => p.id === propertyId)
+    const client = clients.find((c) => c.id === clientId)
+    if (!property || !client) {
+      setMessage('Selecione cliente e imóvel.')
+      setSaving(false)
       return
     }
-    setMessage('Horário disponível criado.')
+
+    let assignedEmployeeId = employeeId || null
+    if (employeeId === '__admin__') {
+      const id = await ensureAdminAsEmployee()
+      if (!id) {
+        setSaving(false)
+        return
+      }
+      assignedEmployeeId = id
+    }
+
+    let pay = 0
+    if (assignedEmployeeId) {
+      const { data: empRow } = await supabase
+        .from('employees')
+        .select('pay_per_cleaning')
+        .eq('id', assignedEmployeeId)
+        .maybeSingle()
+      pay = Number(empRow?.pay_per_cleaning || 0)
+    }
+
+    const quote = resolvePropertyPrice(property)
+    const scheduledStart = combineDateAndTime(day, startTime)
+
+    const { error } = await supabase.from('cleanings').insert({
+      property_id: property.id,
+      client_id: client.id,
+      employee_id: assignedEmployeeId,
+      scheduled_start: scheduledStart,
+      status: 'confirmed',
+      pricing_type: quote.pricing_type,
+      unit_price: quote.unit_price,
+      hours: quote.hours,
+      revenue_amount: quote.revenue_amount,
+      employee_pay_amount: pay,
+      notes: 'Agendada pela admin',
+    })
+
+    if (error) {
+      setMessage(error.message)
+      setSaving(false)
+      return
+    }
+
+    setMessage(
+      `Faxina agendada: ${format(new Date(scheduledStart), "EEEE dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
+    )
+    setSaving(false)
     await load()
   }
 
   async function confirmCleaning(cleaning: Cleaning) {
-    const employeeId = assignMap[cleaning.id]
-    if (!employeeId) {
-      setMessage('Selecione a funcionária antes de confirmar.')
+    let employeePick = assignMap[cleaning.id]
+    if (!employeePick) {
+      setMessage('Selecione quem vai fazer a faxina.')
       return
     }
-    const emp = employees.find((e) => e.id === employeeId)
+    if (employeePick === '__admin__') {
+      const id = await ensureAdminAsEmployee()
+      if (!id) return
+      employeePick = id
+    }
+    const emp = employees.find((e) => e.id === employeePick)
     const { error } = await supabase
       .from('cleanings')
       .update({
         status: 'confirmed',
-        employee_id: employeeId,
+        employee_id: employeePick,
         employee_pay_amount: Number(emp?.pay_per_cleaning || 0),
         updated_at: new Date().toISOString(),
       })
@@ -101,15 +195,7 @@ export default function AdminSchedulePage() {
       setMessage(error.message)
       return
     }
-
-    if (cleaning.availability_slot_id) {
-      await supabase
-        .from('availability_slots')
-        .update({ is_open: false, employee_id: employeeId })
-        .eq('id', cleaning.availability_slot_id)
-    }
-
-    setMessage('Faxina confirmada.')
+    setMessage('Solicitação aprovada e confirmada.')
     await load()
   }
 
@@ -126,70 +212,88 @@ export default function AdminSchedulePage() {
     ['confirmed', 'in_progress'].includes(c.status)
   )
 
+  const executorOptions = (
+    <>
+      <option value="__admin__">Eu (admin) — faço a faxina</option>
+      {employees.map((e) => (
+        <option key={e.id} value={e.id}>
+          {e.full_name}
+          {e.user_id === user?.id ? ' (você)' : ''}
+        </option>
+      ))}
+    </>
+  )
+
   return (
-    <AppShell title="Agenda">
+    <AppShell
+      title="Agenda"
+      subtitle="Agende faxinas para clientes (dia + hora de início) ou aprove solicitações pendentes."
+    >
       {message && (
         <p className="mb-4 rounded-xl bg-[var(--soft)] px-3 py-2 text-sm">{message}</p>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <Card>
-          <h2 className="mb-3 font-semibold">Abrir disponibilidade</h2>
-          <form className="space-y-3" onSubmit={createSlot}>
+          <h2 className="mb-3 font-semibold">Agendar faxina (admin)</h2>
+          <form className="space-y-3" onSubmit={createCleaning}>
             <div>
-              <Label>Data</Label>
-              <Input type="date" required value={slotDate} onChange={(e) => setSlotDate(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label>Início</Label>
-                <Input type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-              </div>
-              <div>
-                <Label>Fim</Label>
-                <Input type="time" required value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <Label>Funcionária (opcional)</Label>
-              <Select value={slotEmployee} onChange={(e) => setSlotEmployee(e.target.value)}>
-                <option value="">Qualquer</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.full_name}
+              <Label>Cliente</Label>
+              <Select required value={clientId} onChange={(e) => setClientId(e.target.value)}>
+                <option value="" disabled>
+                  Selecione
+                </option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.full_name}
                   </option>
                 ))}
               </Select>
             </div>
-            <Button type="submit">Publicar horário</Button>
+            <div>
+              <Label>Imóvel / studio</Label>
+              <Select required value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
+                <option value="" disabled>
+                  Selecione
+                </option>
+                {clientProperties.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label>Dia</Label>
+              <Input type="date" required value={day} onChange={(e) => setDay(e.target.value)} />
+            </div>
+            <div>
+              <Label>Hora de início</Label>
+              <Input
+                type="time"
+                required
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Quem executa</Label>
+              <Select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}>
+                <option value="">Definir depois</option>
+                {executorOptions}
+              </Select>
+            </div>
+            <Button type="submit" disabled={saving || !clientId || !propertyId}>
+              {saving ? 'Salvando…' : 'Agendar faxina'}
+            </Button>
           </form>
-
-          <div className="mt-6 space-y-2">
-            <h3 className="text-sm font-semibold">Próximos slots</h3>
-            {slots.length === 0 ? (
-              <EmptyState text="Nenhum horário aberto." />
-            ) : (
-              slots.slice(0, 8).map((s) => (
-                <div
-                  key={s.id}
-                  className="rounded-xl border border-[var(--line)] px-3 py-2 text-sm"
-                >
-                  {format(combineDateAndTime(s.slot_date, s.start_time), "dd/MM · HH:mm", {
-                    locale: ptBR,
-                  })}
-                  –{s.end_time.slice(0, 5)}
-                  {!s.is_open && ' · ocupado'}
-                </div>
-              ))
-            )}
-          </div>
         </Card>
 
         <div className="space-y-8">
           <section>
-            <h2 className="mb-3 text-lg font-semibold">Confirmar solicitações</h2>
+            <h2 className="mb-3 text-lg font-semibold">Pendentes de aprovação</h2>
             {pending.length === 0 ? (
-              <EmptyState text="Nada pendente." />
+              <EmptyState text="Nenhuma solicitação de cliente aguardando." />
             ) : (
               <div className="space-y-2">
                 {pending.map((c) => (
@@ -200,17 +304,14 @@ export default function AdminSchedulePage() {
                           {c.properties?.label} · {c.clients?.full_name}
                         </p>
                         <p className="text-sm text-[var(--muted)]">
-                          {format(new Date(c.scheduled_start), "dd/MM/yyyy HH:mm", {
-                            locale: ptBR,
-                          })}{' '}
-                          · {formatBRL(c.revenue_amount)}
+                          {formatCleaningWhen(c.scheduled_start)} · {formatBRL(c.revenue_amount)}
                         </p>
                       </div>
                       <StatusBadge status={c.status} />
                     </div>
                     <div className="flex flex-wrap items-end gap-2">
                       <div className="min-w-[200px] flex-1">
-                        <Label>Atribuir funcionária</Label>
+                        <Label>Atribuir executora</Label>
                         <Select
                           value={assignMap[c.id] || ''}
                           onChange={(e) =>
@@ -218,16 +319,12 @@ export default function AdminSchedulePage() {
                           }
                         >
                           <option value="">Selecione</option>
-                          {employees.map((e) => (
-                            <option key={e.id} value={e.id}>
-                              {e.full_name} ({formatBRL(e.pay_per_cleaning)}/faxina)
-                            </option>
-                          ))}
+                          {executorOptions}
                         </Select>
                       </div>
-                      <Button onClick={() => void confirmCleaning(c)}>Confirmar</Button>
+                      <Button onClick={() => void confirmCleaning(c)}>Aprovar</Button>
                       <Button variant="ghost" onClick={() => void cancelCleaning(c.id)}>
-                        Cancelar
+                        Recusar
                       </Button>
                     </div>
                   </Card>
@@ -247,10 +344,11 @@ export default function AdminSchedulePage() {
                     <div>
                       <p className="font-medium">{c.properties?.label}</p>
                       <p className="text-sm text-[var(--muted)]">
-                        {format(new Date(c.scheduled_start), "dd/MM HH:mm", { locale: ptBR })}
+                        {formatCleaningWhen(c.scheduled_start)}
                         {c.employees?.full_name ? ` · ${c.employees.full_name}` : ''}
-                        {' · paga '}
-                        {formatBRL(c.employee_pay_amount)}
+                        {c.properties?.buildings?.name
+                          ? ` · ${c.properties.buildings.name}`
+                          : ''}
                       </p>
                     </div>
                     <StatusBadge status={c.status} />

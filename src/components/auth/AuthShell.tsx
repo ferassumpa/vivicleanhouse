@@ -2,8 +2,9 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { CalendarDays, Camera, Sparkles, Wallet } from 'lucide-react'
+import { CalendarDays, Camera, ClipboardCheck, Sparkles } from 'lucide-react'
 import { ReactNode } from 'react'
+import { BrandLogo } from '@/components/BrandLogo'
 
 interface AuthShellProps {
   eyebrow?: ReactNode
@@ -30,13 +31,13 @@ export function AuthShell({
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 0.55, scale: 1 }}
             transition={{ duration: 1.4 }}
-            className="absolute -top-24 -left-20 h-96 w-96 rounded-full bg-[var(--teal)]/40 blur-3xl"
+            className="absolute -top-24 -left-20 h-96 w-96 rounded-full bg-[var(--pink)]/50 blur-3xl"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 0.35, scale: 1 }}
             transition={{ duration: 1.6, delay: 0.15 }}
-            className="absolute -bottom-32 -right-16 h-[28rem] w-[28rem] rounded-full bg-emerald-400/20 blur-3xl"
+            className="absolute -bottom-32 -right-16 h-[28rem] w-[28rem] rounded-full bg-[var(--pink-soft)]/40 blur-3xl"
           />
         </div>
         <div
@@ -51,16 +52,9 @@ export function AuthShell({
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative z-10"
+          className="relative z-10 rounded-2xl bg-white/95 px-4 py-3"
         >
-          <Link href="/" className="inline-flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur-md">
-              <Sparkles className="h-6 w-6 text-[var(--teal)]" />
-            </div>
-            <span className="font-display text-2xl tracking-tight">
-              Vivi<span className="text-[var(--teal)]">Clenaer</span>
-            </span>
-          </Link>
+          <BrandLogo href="/" size="md" />
         </motion.div>
 
         <motion.div
@@ -69,24 +63,24 @@ export function AuthShell({
           transition={{ delay: 0.12 }}
           className="relative z-10 max-w-md"
         >
-          <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[var(--teal)] ring-1 ring-white/15">
+          <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[var(--pink-soft)] ring-1 ring-white/15">
             <Sparkles className="h-3.5 w-3.5" />
-            Limpeza organizada
+            Limpeza com carinho
           </p>
           <h2 className="font-display text-4xl leading-tight tracking-tight xl:text-5xl">
-            Agenda, equipe e finanças das faxinas em um só lugar.
+            Agenda, equipe e fotos das faxinas em um só lugar.
           </h2>
           <p className="mt-4 text-base text-white/70 xl:text-lg">
-            Clientes agendam, a admin confirma, a funcionária executa com fotos e
-            materiais — e você acompanha a margem de cada imóvel.
+            Clientes solicitam, a admin confirma (e também pode agendar e executar),
+            as faxineiras fazem o serviço com checklist e fotos pré/pós.
           </p>
 
           <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[
-              { icon: <CalendarDays className="h-4 w-4" />, label: 'Agenda com confirmação' },
-              { icon: <Camera className="h-4 w-4" />, label: 'Fotos antes e depois' },
-              { icon: <Wallet className="h-4 w-4" />, label: 'Finanças por faxina' },
-              { icon: <Sparkles className="h-4 w-4" />, label: 'Equipe e clientes' },
+              { icon: <CalendarDays className="h-4 w-4" />, label: 'Agenda com dia e hora' },
+              { icon: <Camera className="h-4 w-4" />, label: 'Fotos pré e pós' },
+              { icon: <ClipboardCheck className="h-4 w-4" />, label: 'Checklist por imóvel' },
+              { icon: <Sparkles className="h-4 w-4" />, label: 'Prédios e studios' },
             ].map((f, i) => (
               <motion.div
                 key={f.label}
@@ -95,7 +89,7 @@ export function AuthShell({
                 transition={{ delay: 0.25 + i * 0.07 }}
                 className="flex items-center gap-2.5 rounded-2xl bg-white/8 px-3.5 py-2.5 ring-1 ring-white/10 backdrop-blur"
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--teal)]/25 text-[var(--teal)]">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--pink)]/30 text-[var(--pink-soft)]">
                   {f.icon}
                 </span>
                 <span className="text-sm font-medium text-white/90">{f.label}</span>
@@ -105,20 +99,13 @@ export function AuthShell({
         </motion.div>
 
         <div className="relative z-10 text-xs text-white/40">
-          © {new Date().getFullYear()} ViviClenaer · Todos os direitos reservados
+          © {new Date().getFullYear()} Vivi Clean house · Todos os direitos reservados
         </div>
       </aside>
 
       <main className="relative flex min-h-screen flex-col px-5 py-8 sm:px-8 lg:px-12 xl:px-20">
         <div className="mb-4 flex items-center justify-between lg:hidden">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-              <Sparkles className="h-5 w-5 text-[var(--teal-dark)]" />
-            </div>
-            <span className="font-display text-lg text-[var(--navy)]">
-              Vivi<span className="text-[var(--teal-dark)]">Clenaer</span>
-            </span>
-          </Link>
+          <BrandLogo href="/" size="sm" />
         </div>
 
         {back && (
@@ -141,7 +128,7 @@ export function AuthShell({
           >
             <div className="mb-7">
               {eyebrow && (
-                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--teal-dark)]">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--pink-deep)]">
                   {eyebrow}
                 </p>
               )}

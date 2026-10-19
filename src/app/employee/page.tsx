@@ -2,13 +2,12 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { format, startOfDay, endOfDay } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { format, startOfDay } from 'date-fns'
 import { AppShell } from '@/components/AppShell'
 import { Card, EmptyState, StatusBadge } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { formatBRL, type Cleaning, type Employee } from '@/lib/types'
+import { formatCleaningWhen, type Cleaning, type Employee } from '@/lib/types'
 
 export default function EmployeeHomePage() {
   const { user } = useAuth()
@@ -32,14 +31,14 @@ export default function EmployeeHomePage() {
       }
 
       const from = startOfDay(new Date()).toISOString()
-      const to = endOfDay(new Date(Date.now() + 7 * 86400000)).toISOString()
       const { data } = await supabase
         .from('cleanings')
-        .select('*, properties(id,label,address), clients(id,full_name)')
+        .select(
+          '*, properties(id,label,address, buildings(id,name)), clients(id,full_name)'
+        )
         .eq('employee_id', emp.id)
         .in('status', ['confirmed', 'in_progress', 'done'])
         .gte('scheduled_start', from)
-        .lte('scheduled_start', to)
         .order('scheduled_start', { ascending: true })
 
       setJobs((data as Cleaning[]) || [])
@@ -48,26 +47,21 @@ export default function EmployeeHomePage() {
     void load()
   }, [user])
 
-  const todayJobs = jobs.filter(
-    (j) => j.scheduled_start.slice(0, 10) === format(new Date(), 'yyyy-MM-dd')
-  )
+  const todayKey = format(new Date(), 'yyyy-MM-dd')
+  const todayJobs = jobs.filter((j) => j.scheduled_start.slice(0, 10) === todayKey)
 
   return (
-    <AppShell title="Minhas faxinas">
+    <AppShell
+      title="Minha agenda"
+      subtitle="Veja dia, hora e endereço das faxinas. Valores financeiros não aparecem nesta conta."
+    >
       {!employee && !loading && (
         <Card className="mb-4">
           <p className="text-sm">
             Seu login ainda não está vinculado a uma funcionária. Peça à admin para
-            preencher o <code>user_id</code> no cadastro.
+            cadastrar você em Funcionárias e vincular o e-mail.
           </p>
         </Card>
-      )}
-
-      {employee && (
-        <p className="mb-4 text-sm text-[var(--muted)]">
-          Você ganha {formatBRL(employee.pay_per_cleaning)} por faxina e pode fazer
-          várias no mesmo dia.
-        </p>
       )}
 
       <section className="mb-8">
@@ -80,14 +74,14 @@ export default function EmployeeHomePage() {
           <div className="space-y-2">
             {todayJobs.map((j) => (
               <Link key={j.id} href={`/employee/jobs/${j.id}`}>
-                <Card className="mb-2 flex flex-wrap items-center justify-between gap-3 transition hover:border-[var(--brand)]">
+                <Card className="mb-2 flex flex-wrap items-center justify-between gap-3 transition hover:border-[var(--pink-deep)]">
                   <div>
                     <p className="font-medium">{j.properties?.label}</p>
                     <p className="text-sm text-[var(--muted)]">
-                      {format(new Date(j.scheduled_start), 'HH:mm', { locale: ptBR })}
-                      {j.properties?.address ? ` · ${j.properties.address}` : ''}
-                      {' · '}
-                      {formatBRL(j.employee_pay_amount)}
+                      {formatCleaningWhen(j.scheduled_start)}
+                      {j.properties?.buildings?.name
+                        ? ` · ${j.properties.buildings.name}`
+                        : ''}
                     </p>
                   </div>
                   <StatusBadge status={j.status} />
@@ -99,7 +93,7 @@ export default function EmployeeHomePage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Próximos dias</h2>
+        <h2 className="mb-3 text-lg font-semibold">Próximas</h2>
         {jobs.filter((j) => !todayJobs.includes(j)).length === 0 ? (
           <EmptyState text="Sem faxinas nos próximos dias." />
         ) : (
@@ -112,9 +106,7 @@ export default function EmployeeHomePage() {
                     <div>
                       <p className="font-medium">{j.properties?.label}</p>
                       <p className="text-sm text-[var(--muted)]">
-                        {format(new Date(j.scheduled_start), "EEEE dd/MM HH:mm", {
-                          locale: ptBR,
-                        })}
+                        {formatCleaningWhen(j.scheduled_start)}
                       </p>
                     </div>
                     <StatusBadge status={j.status} />

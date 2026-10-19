@@ -109,7 +109,7 @@ export default function ClientSchedulePage() {
     }
 
     setMessage(
-      'Solicitação enviada! A admin precisa confirmar e atribuir a funcionária.'
+      'Solicitação enviada! Fica pendente até a admin aprovar (com dia e hora de início).'
     )
     setSlotId('')
   }

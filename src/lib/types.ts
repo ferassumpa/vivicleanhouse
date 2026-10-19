@@ -35,9 +35,25 @@ export type Employee = {
   created_at: string
 }
 
+export type Building = {
+  id: string
+  name: string
+  address: string | null
+  syndic_name: string | null
+  syndic_phone: string | null
+  doorman_name: string | null
+  doorman_phone: string | null
+  caretaker_name: string | null
+  caretaker_phone: string | null
+  entry_rules: string | null
+  notes: string | null
+  created_at?: string
+}
+
 export type Property = {
   id: string
   client_id: string
+  building_id: string | null
   label: string
   property_type: string
   address: string | null
@@ -49,6 +65,7 @@ export type Property = {
   estimated_duration_minutes: number
   active: boolean
   clients?: Pick<Client, 'id' | 'full_name'> | null
+  buildings?: Pick<Building, 'id' | 'name' | 'address' | 'entry_rules' | 'doorman_name' | 'doorman_phone' | 'syndic_name' | 'syndic_phone' | 'caretaker_name' | 'caretaker_phone'> | null
 }
 
 export type AvailabilitySlot = {
@@ -81,7 +98,9 @@ export type Cleaning = {
   started_at: string | null
   ended_at: string | null
   created_at: string
-  properties?: Pick<Property, 'id' | 'label' | 'address' | 'access_notes'> | null
+  properties?: Pick<Property, 'id' | 'label' | 'address' | 'access_notes' | 'building_id'> & {
+    buildings?: Property['buildings']
+  } | null
   clients?: Pick<Client, 'id' | 'full_name'> | null
   employees?: Pick<Employee, 'id' | 'full_name'> | null
 }
@@ -93,8 +112,25 @@ export type Material = {
   active: boolean
 }
 
+export type ChecklistItem = {
+  id: string
+  property_id: string | null
+  label: string
+  sort_order: number
+  active: boolean
+}
+
+export type CleaningChecklistRow = {
+  id: string
+  cleaning_id: string
+  checklist_item_id: string | null
+  label: string
+  done: boolean
+  done_at: string | null
+}
+
 export const STATUS_LABELS: Record<CleaningStatus, string> = {
-  requested: 'Solicitada',
+  requested: 'Pendente (aguardando admin)',
   confirmed: 'Confirmada',
   in_progress: 'Em andamento',
   done: 'Concluída',
@@ -121,4 +157,15 @@ export function formatBRL(value: number): string {
     style: 'currency',
     currency: 'BRL',
   }).format(Number(value) || 0)
+}
+
+export function formatCleaningWhen(iso: string): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso))
 }

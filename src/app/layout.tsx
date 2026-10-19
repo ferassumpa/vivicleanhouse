@@ -14,13 +14,14 @@ const display = Fraunces({
 })
 
 export const metadata: Metadata = {
-  title: 'ViviClenaer',
+  title: 'Vivi Clean house',
   description: 'Gestão de faxinas para estúdios e apartamentos',
-  applicationName: 'ViviClenaer',
+  applicationName: 'Vivi Clean house',
+  icons: { icon: '/logo.png' },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0f766e',
+  themeColor: '#f4a7b9',
   width: 'device-width',
   initialScale: 1,
 }

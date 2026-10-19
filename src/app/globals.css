@@ -1,26 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  --navy: #0c2a26;
-  --teal: #14a3a0;
-  --teal-dark: #0f766e;
-  --sand: #e8f0ec;
-  --ink: #12201c;
-  --muted: #5c6f68;
-  --line: #d5e2db;
+  /* Rosa bebê puxado ao vermelho (claro) + contraste */
+  --navy: #4a2430;
+  --pink: #f4a7b9;
+  --pink-soft: #f9c5d1;
+  --pink-deep: #e07a92;
+  --teal: var(--pink);
+  --teal-dark: var(--pink-deep);
+  --ink: #3a2430;
+  --muted: #7a5a66;
+  --line: #f0d4dc;
   --panel: #ffffff;
-  --soft: #eef5f1;
+  --soft: #fff0f3;
   --danger: #c2410c;
-  --bg: #f4f8f6;
-  --bg-glow: radial-gradient(1100px 520px at 8% -8%, #c5e4dc 0%, transparent 55%),
-    radial-gradient(900px 420px at 100% 0%, #dce9e3 0%, transparent 48%),
+  --bg: #fff7f9;
+  --bg-glow: radial-gradient(1100px 520px at 8% -8%, #f9c5d1 0%, transparent 55%),
+    radial-gradient(900px 420px at 100% 0%, #ffe4ea 0%, transparent 48%),
     var(--bg);
 }
 
 @theme inline {
   --color-navy: var(--navy);
-  --color-teal: var(--teal);
-  --color-teal-dark: var(--teal-dark);
+  --color-teal: var(--pink);
+  --color-teal-dark: var(--pink-deep);
+  --color-pink: var(--pink);
   --color-background: var(--bg);
   --color-foreground: var(--ink);
   --font-sans: var(--font-body);
@@ -42,11 +46,11 @@ body {
   color: var(--navy);
 }
 .text-teal {
-  color: var(--teal);
+  color: var(--pink-deep);
 }
 .bg-navy {
   background-color: var(--navy);
 }
 .bg-teal {
-  background-color: var(--teal);
+  background-color: var(--pink);
 }

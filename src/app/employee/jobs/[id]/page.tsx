@@ -1,60 +1,58 @@
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
-import { FormEvent, useEffect, useState } from 'react'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { useEffect, useState } from 'react'
 import { AppShell } from '@/components/AppShell'
 import {
   Button,
   Card,
   EmptyState,
   Input,
-  Label,
-  Select,
   StatusBadge,
 } from '@/components/ui'
+import { ensureCleaningChecklist } from '@/lib/checklist'
 import { getCleaningPhotoUrl, supabase } from '@/lib/supabase'
 import {
-  formatBRL,
+  formatCleaningWhen,
   type Cleaning,
-  type Material,
+  type CleaningChecklistRow,
   type PhotoKind,
 } from '@/lib/types'
 
 type PhotoRow = { id: string; kind: PhotoKind; storage_path: string; url?: string | null }
-type MaterialRow = {
-  id: string
-  name: string
-  quantity: number
-  unit_cost: number
-  total_cost: number
-}
 
 export default function EmployeeJobPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const [job, setJob] = useState<Cleaning | null>(null)
   const [photos, setPhotos] = useState<PhotoRow[]>([])
-  const [materials, setMaterials] = useState<Material[]>([])
-  const [used, setUsed] = useState<MaterialRow[]>([])
-  const [materialId, setMaterialId] = useState('')
-  const [qty, setQty] = useState('1')
+  const [checklist, setChecklist] = useState<CleaningChecklistRow[]>([])
   const [message, setMessage] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
   async function load() {
     const { data } = await supabase
       .from('cleanings')
-      .select('*, properties(id,label,address,access_notes), clients(id,full_name)')
+      .select(
+        '*, properties(id,label,address,access_notes,building_id, buildings(id,name,address,entry_rules,doorman_name,doorman_phone,syndic_name,syndic_phone,caretaker_name,caretaker_phone)), clients(id,full_name)'
+      )
       .eq('id', params.id)
       .maybeSingle()
-    setJob((data as Cleaning) || null)
 
-    const [photosRes, matsRes, usedRes] = await Promise.all([
+    const cleaning = data as Cleaning | null
+    setJob(cleaning)
+
+    if (cleaning) {
+      await ensureCleaningChecklist(cleaning.id, cleaning.property_id)
+    }
+
+    const [photosRes, checklistRes] = await Promise.all([
       supabase.from('cleaning_photos').select('*').eq('cleaning_id', params.id),
-      supabase.from('materials').select('*').eq('active', true).order('name'),
-      supabase.from('cleaning_materials').select('*').eq('cleaning_id', params.id),
+      supabase
+        .from('cleaning_checklist')
+        .select('*')
+        .eq('cleaning_id', params.id)
+        .order('created_at'),
     ])
 
     const withUrls = await Promise.all(
@@ -64,9 +62,7 @@ export default function EmployeeJobPage() {
       }))
     )
     setPhotos(withUrls)
-    setMaterials((matsRes.data as Material[]) || [])
-    setUsed((usedRes.data as MaterialRow[]) || [])
-    if (matsRes.data?.[0] && !materialId) setMaterialId(matsRes.data[0].id)
+    setChecklist((checklistRes.data as CleaningChecklistRow[]) || [])
   }
 
   useEffect(() => {
@@ -89,10 +85,16 @@ export default function EmployeeJobPage() {
 
   async function checkIn() {
     await setStatus('in_progress', { started_at: new Date().toISOString() })
-    setMessage('Entrada registrada.')
+    setMessage('Entrada registrada. Tire a foto pré-faxina.')
   }
 
   async function checkOut() {
+    const missingBefore = photos.filter((p) => p.kind === 'before').length === 0
+    const missingAfter = photos.filter((p) => p.kind === 'after').length === 0
+    if (missingBefore || missingAfter) {
+      setMessage('Envie ao menos uma foto pré e uma foto pós antes de concluir.')
+      return
+    }
     await setStatus('done', { ended_at: new Date().toISOString() })
     setMessage('Saída registrada. Faxina concluída.')
   }
@@ -123,26 +125,12 @@ export default function EmployeeJobPage() {
     await load()
   }
 
-  async function addMaterial(e: FormEvent) {
-    e.preventDefault()
-    if (!job) return
-    const mat = materials.find((m) => m.id === materialId)
-    if (!mat) return
-    const quantity = Number(qty) || 1
-    const unit = Number(mat.unit_cost)
-    const { error } = await supabase.from('cleaning_materials').insert({
-      cleaning_id: job.id,
-      material_id: mat.id,
-      name: mat.name,
-      quantity,
-      unit_cost: unit,
-      total_cost: unit * quantity,
-    })
-    if (error) {
-      setMessage(error.message)
-      return
-    }
-    setQty('1')
+  async function toggleCheck(row: CleaningChecklistRow) {
+    const done = !row.done
+    await supabase
+      .from('cleaning_checklist')
+      .update({ done, done_at: done ? new Date().toISOString() : null })
+      .eq('id', row.id)
     await load()
   }
 
@@ -159,6 +147,7 @@ export default function EmployeeJobPage() {
 
   const before = photos.filter((p) => p.kind === 'before')
   const after = photos.filter((p) => p.kind === 'after')
+  const building = job.properties?.buildings
 
   return (
     <AppShell title={job.properties?.label || 'Faxina'}>
@@ -167,22 +156,53 @@ export default function EmployeeJobPage() {
           <div>
             <p className="font-medium">{job.clients?.full_name}</p>
             <p className="text-sm text-[var(--muted)]">
-              {format(new Date(job.scheduled_start), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+              {formatCleaningWhen(job.scheduled_start)}
             </p>
-            {job.properties?.address && (
-              <p className="mt-1 text-sm">{job.properties.address}</p>
+            {building?.name && (
+              <p className="mt-1 text-sm font-medium text-[var(--navy)]">
+                Prédio: {building.name}
+              </p>
             )}
-            {job.properties?.access_notes && (
-              <p className="mt-2 rounded-xl bg-[var(--soft)] px-3 py-2 text-sm">
-                Acesso: {job.properties.access_notes}
+            {(job.properties?.address || building?.address) && (
+              <p className="mt-1 text-sm">{job.properties?.address || building?.address}</p>
+            )}
+          </div>
+          <StatusBadge status={job.status} />
+        </div>
+
+        {building && (
+          <div className="mt-3 space-y-1 rounded-xl bg-[var(--soft)] px-3 py-2 text-sm">
+            {building.entry_rules && (
+              <p>
+                <strong>Regras de entrada:</strong> {building.entry_rules}
+              </p>
+            )}
+            {building.doorman_name && (
+              <p>
+                Porteiro: {building.doorman_name}
+                {building.doorman_phone ? ` · ${building.doorman_phone}` : ''}
+              </p>
+            )}
+            {building.caretaker_name && (
+              <p>
+                Zelador: {building.caretaker_name}
+                {building.caretaker_phone ? ` · ${building.caretaker_phone}` : ''}
+              </p>
+            )}
+            {building.syndic_name && (
+              <p>
+                Síndico: {building.syndic_name}
+                {building.syndic_phone ? ` · ${building.syndic_phone}` : ''}
               </p>
             )}
           </div>
-          <div className="text-right">
-            <StatusBadge status={job.status} />
-            <p className="mt-2 text-sm">{formatBRL(job.employee_pay_amount)} / faxina</p>
-          </div>
-        </div>
+        )}
+
+        {job.properties?.access_notes && (
+          <p className="mt-2 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-[var(--line)]">
+            Acesso do imóvel: {job.properties.access_notes}
+          </p>
+        )}
       </Card>
 
       {message && (
@@ -203,7 +223,8 @@ export default function EmployeeJobPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <h2 className="mb-3 font-semibold">Fotos antes</h2>
+          <h2 className="mb-1 font-semibold">Foto pré-faxina</h2>
+          <p className="mb-3 text-xs text-[var(--muted)]">Tire antes de começar a limpeza.</p>
           <Input
             type="file"
             accept="image/*"
@@ -218,14 +239,15 @@ export default function EmployeeJobPage() {
             {before.map((p) =>
               p.url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={p.id} src={p.url} alt="Antes" className="h-28 w-full rounded-xl object-cover" />
+                <img key={p.id} src={p.url} alt="Pré" className="h-28 w-full rounded-xl object-cover" />
               ) : null
             )}
           </div>
         </Card>
 
         <Card>
-          <h2 className="mb-3 font-semibold">Fotos depois</h2>
+          <h2 className="mb-1 font-semibold">Foto pós-faxina</h2>
+          <p className="mb-3 text-xs text-[var(--muted)]">Tire ao finalizar a limpeza.</p>
           <Input
             type="file"
             accept="image/*"
@@ -240,7 +262,7 @@ export default function EmployeeJobPage() {
             {after.map((p) =>
               p.url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={p.id} src={p.url} alt="Depois" className="h-28 w-full rounded-xl object-cover" />
+                <img key={p.id} src={p.url} alt="Pós" className="h-28 w-full rounded-xl object-cover" />
               ) : null
             )}
           </div>
@@ -248,42 +270,27 @@ export default function EmployeeJobPage() {
       </div>
 
       <Card className="mt-4">
-        <h2 className="mb-3 font-semibold">Materiais usados</h2>
-        <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={addMaterial}>
-          <div className="min-w-[180px] flex-1">
-            <Label>Material</Label>
-            <Select value={materialId} onChange={(e) => setMaterialId(e.target.value)}>
-              {materials.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({formatBRL(m.unit_cost)})
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="w-24">
-            <Label>Qtd</Label>
-            <Input type="number" min="0.1" step="0.1" value={qty} onChange={(e) => setQty(e.target.value)} />
-          </div>
-          <Button type="submit" disabled={!materialId}>
-            Adicionar
-          </Button>
-        </form>
-        {used.length === 0 ? (
-          <EmptyState text="Nenhum material registrado." />
+        <h2 className="mb-3 font-semibold">Checklist da faxina</h2>
+        {checklist.length === 0 ? (
+          <EmptyState text="Nenhum item de checklist para este imóvel." />
         ) : (
-          <div className="space-y-1 text-sm">
-            {used.map((u) => (
-              <div key={u.id} className="flex justify-between border-b border-[var(--line)] py-2">
-                <span>
-                  {u.name} × {u.quantity}
-                </span>
-                <span>{formatBRL(u.total_cost)}</span>
-              </div>
+          <ul className="space-y-2">
+            {checklist.map((row) => (
+              <li key={row.id}>
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--line)] px-3 py-2.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={row.done}
+                    onChange={() => void toggleCheck(row)}
+                    className="h-4 w-4 accent-[var(--pink-deep)]"
+                  />
+                  <span className={row.done ? 'text-[var(--muted)] line-through' : ''}>
+                    {row.label}
+                  </span>
+                </label>
+              </li>
             ))}
-            <p className="pt-2 font-medium">
-              Total materiais: {formatBRL(job.materials_cost)}
-            </p>
-          </div>
+          </ul>
         )}
       </Card>
     </AppShell>

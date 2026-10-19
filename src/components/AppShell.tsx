@@ -7,11 +7,14 @@ import {
   CalendarDays,
   ClipboardList,
   Home,
+  LandPlot,
+  ListChecks,
   LogOut,
   Sparkles,
   Users,
   Wallet,
 } from 'lucide-react'
+import { BrandLogo } from '@/components/BrandLogo'
 import { useAuth } from '@/contexts/AuthContext'
 import type { UserRole } from '@/lib/types'
 
@@ -22,12 +25,14 @@ const NAV: Record<UserRole, NavItem[]> = {
     { href: '/admin', label: 'Painel', icon: <Home size={18} /> },
     { href: '/admin/clients', label: 'Clientes', icon: <Users size={18} /> },
     { href: '/admin/employees', label: 'Funcionárias', icon: <Sparkles size={18} /> },
+    { href: '/admin/buildings', label: 'Prédios', icon: <LandPlot size={18} /> },
     { href: '/admin/properties', label: 'Imóveis', icon: <Building2 size={18} /> },
+    { href: '/admin/checklist', label: 'Checklist', icon: <ListChecks size={18} /> },
     { href: '/admin/schedule', label: 'Agenda', icon: <CalendarDays size={18} /> },
     { href: '/admin/finance', label: 'Finanças', icon: <Wallet size={18} /> },
   ],
   employee: [
-    { href: '/employee', label: 'Hoje', icon: <ClipboardList size={18} /> },
+    { href: '/employee', label: 'Agenda', icon: <ClipboardList size={18} /> },
     { href: '/employee/availability', label: 'Disponibilidade', icon: <CalendarDays size={18} /> },
   ],
   client: [
@@ -61,19 +66,17 @@ export function AppShell({
     <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col md:flex-row">
         <aside className="border-b border-[var(--line)] bg-white/90 backdrop-blur md:w-60 md:border-b-0 md:border-r">
-          <div className="flex items-center justify-between gap-3 px-4 py-5 md:block">
+          <div className="flex items-center justify-between gap-3 px-4 py-4 md:block">
             <div>
-              <p className="font-display text-xl tracking-tight text-[var(--navy)]">
-                Vivi<span className="text-[var(--teal-dark)]">Clenaer</span>
-              </p>
-              <p className="mt-0.5 text-xs text-[var(--muted)]">
+              <BrandLogo href={role === 'admin' ? '/admin' : role === 'employee' ? '/employee' : '/client'} size="sm" />
+              <p className="mt-2 text-xs text-[var(--muted)]">
                 {profile?.full_name || 'Usuário'}
                 {role ? ` · ${ROLE_LABEL[role]}` : ''}
               </p>
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-sm text-[var(--muted)] transition hover:bg-[var(--soft)] md:mt-4"
+              className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-sm text-[var(--muted)] transition hover:bg-[var(--soft)] md:mt-3"
               onClick={async () => {
                 await signOut()
                 router.replace('/')
