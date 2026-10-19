@@ -34,6 +34,7 @@ export default function AdminPropertiesPage() {
   const [properties, setProperties] = useState<Property[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [buildings, setBuildings] = useState<Building[]>([])
+  const [packages, setPackages] = useState<ServicePackage[]>([])
   const [form, setForm] = useState(empty)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -42,17 +43,19 @@ export default function AdminPropertiesPage() {
   const needsBuilding = form.propertyType === 'estudio' || form.propertyType === 'apartamento'
 
   async function load() {
-    const [propsRes, clientsRes, buildingsRes] = await Promise.all([
+    const [propsRes, clientsRes, buildingsRes, packagesRes] = await Promise.all([
       supabase
         .from('properties')
-        .select('*, clients(id,full_name), buildings(id,name)')
+        .select('*, clients(id,full_name), buildings(id,name), service_packages(id,name,price,cleanings_count,is_monthly)')
         .order('label'),
       supabase.from('clients').select('*').order('full_name'),
       supabase.from('buildings').select('*').order('name'),
+      supabase.from('service_packages').select('*').eq('active', true).order('name'),
     ])
     setProperties((propsRes.data as Property[]) || [])
     setClients((clientsRes.data as Client[]) || [])
     setBuildings((buildingsRes.data as Building[]) || [])
+    setPackages((packagesRes.data as ServicePackage[]) || [])
     if (!form.clientId && clientsRes.data?.[0]) {
       setForm((f) => ({ ...f, clientId: clientsRes.data![0].id }))
     }
@@ -76,6 +79,7 @@ export default function AdminPropertiesPage() {
     setForm({
       clientId: p.client_id,
       buildingId: p.building_id || '',
+      packageId: p.service_package_id || '',
       label: p.label,
       propertyType: p.property_type,
       address: p.address || '',
@@ -104,11 +108,12 @@ export default function AdminPropertiesPage() {
     const payload = {
       client_id: form.clientId,
       building_id: needsBuilding ? form.buildingId : null,
+      service_package_id: form.packageId || null,
       label: form.label.trim(),
       property_type: form.propertyType,
       address: form.address.trim() || null,
       access_notes: form.accessNotes.trim() || null,
-      default_pricing_type: form.pricingType,
+      default_pricing_type: form.packageId ? ('package' as PricingType) : form.pricingType,
       price_hourly: form.priceHourly ? Number(form.priceHourly) : null,
       price_package: form.pricePackage ? Number(form.pricePackage) : null,
       price_fixed: form.priceFixed ? Number(form.priceFixed) : null,
@@ -228,6 +233,30 @@ export default function AdminPropertiesPage() {
               </div>
             )}
             <div>
+              <Label>Pacote (opcional)</Label>
+              <Select
+                value={form.packageId}
+                onChange={(e) => {
+                  const pkg = packages.find((x) => x.id === e.target.value)
+                  setForm((f) => ({
+                    ...f,
+                    packageId: e.target.value,
+                    pricingType: e.target.value ? 'package' : f.pricingType,
+                    pricePackage: pkg ? String(pkg.price) : f.pricePackage,
+                    duration: pkg ? String(pkg.duration_minutes) : f.duration,
+                  }))
+                }}
+              >
+                <option value="">Sem pacote</option>
+                {packages.map((pkg) => (
+                  <option key={pkg.id} value={pkg.id}>
+                    {pkg.name} · {formatBRL(pkg.price)}
+                    {pkg.is_monthly ? ' · mensal' : ''} · {pkg.cleanings_count} faxina(s)
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
               <Label>Nome / identificação</Label>
               <Input
                 required
@@ -334,9 +363,12 @@ export default function AdminPropertiesPage() {
                     </p>
                     <p className="mt-1 text-sm">
                       {[
+                        p.service_packages?.name
+                          ? `Pacote: ${p.service_packages.name}`
+                          : null,
                         p.price_fixed != null ? `Fixo ${formatBRL(p.price_fixed)}` : null,
                         p.price_hourly != null ? `${formatBRL(p.price_hourly)}/h` : null,
-                        p.price_package != null ? `Pacote ${formatBRL(p.price_package)}` : null,
+                        p.price_package != null ? `Valor pacote ${formatBRL(p.price_package)}` : null,
                       ]
                         .filter(Boolean)
                         .join(' · ')}
