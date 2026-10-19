@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -351,7 +352,16 @@ export default function AdminSchedulePage() {
                           : ''}
                       </p>
                     </div>
-                    <StatusBadge status={c.status} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={c.status} />
+                      {c.employee_id && (
+                        <Link href={`/employee/jobs/${c.id}`}>
+                          <Button type="button" variant="secondary">
+                            Abrir faxina
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
                   </Card>
                 ))}
               </div>
