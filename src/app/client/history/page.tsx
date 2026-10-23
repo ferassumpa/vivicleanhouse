@@ -30,6 +30,7 @@ export default function ClientHistoryPage() {
         .from('cleanings')
         .select('*, properties(id,label,address), employees(id,full_name)')
         .eq('client_id', (c as Client).id)
+        .in('status', ['done', 'cancelled'])
         .order('scheduled_start', { ascending: false })
 
       const list = (data as Cleaning[]) || []
@@ -58,9 +59,12 @@ export default function ClientHistoryPage() {
   }, [user])
 
   return (
-    <AppShell title="Histórico">
+    <AppShell
+      title="Histórico"
+      subtitle="Faxinas concluídas ou canceladas, com fotos quando disponíveis."
+    >
       {cleanings.length === 0 ? (
-        <EmptyState text="Você ainda não tem faxinas." />
+        <EmptyState text="Nenhuma faxina concluída ainda. As agendadas ficam em Minhas faxinas." />
       ) : (
         <div className="space-y-3">
           {cleanings.map((c) => {

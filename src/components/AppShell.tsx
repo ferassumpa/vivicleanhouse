@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Building2,
+  CalendarCheck,
   CalendarDays,
   ClipboardList,
   Home,
@@ -44,6 +45,7 @@ const NAV: Record<UserRole, NavItem[]> = {
   client: [
     { href: '/client', label: 'Meus imóveis', icon: <Building2 size={18} /> },
     { href: '/client/schedule', label: 'Agendar', icon: <CalendarDays size={18} /> },
+    { href: '/client/bookings', label: 'Minhas faxinas', icon: <CalendarCheck size={18} /> },
     { href: '/client/history', label: 'Histórico', icon: <ClipboardList size={18} /> },
   ],
 }
