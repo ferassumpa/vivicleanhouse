@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -14,17 +14,13 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { DayCarousel } from '@/components/client/DayCarousel'
 import { Button, Card, EmptyState, Label, Select } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
 import { MIN_CLEANING_DURATION_MINUTES } from '@/lib/availability'
-import { combineDateAndTime, resolvePropertyPrice } from '@/lib/pricing'
+import { combineDateAndTime } from '@/lib/pricing'
 import { supabase } from '@/lib/supabase'
-import {
-  formatBRL,
-  type AvailabilitySlot,
-  type Client,
-  type Property,
-} from '@/lib/types'
+import type { AvailabilitySlot, Client, Property } from '@/lib/types'
 
 export default function ClientSchedulePage() {
   const { user } = useAuth()
@@ -96,8 +92,6 @@ export default function ClientSchedulePage() {
     [slots, slotId]
   )
 
-  const quote = selectedProperty ? resolvePropertyPrice(selectedProperty) : null
-
   const slotsByDate = useMemo(() => {
     const map = new Map<string, AvailabilitySlot[]>()
     for (const s of slots) {
@@ -108,7 +102,10 @@ export default function ClientSchedulePage() {
     return [...map.entries()]
   }, [slots])
 
-  const availableDates = useMemo(() => slotsByDate.map(([d]) => d), [slotsByDate])
+  const carouselDates = useMemo(
+    () => slotsByDate.map(([date, daySlots]) => ({ date, slotCount: daySlots.length })),
+    [slotsByDate]
+  )
 
   const slotsForSelectedDay = useMemo(() => {
     if (!selectedDate) return []
@@ -126,7 +123,7 @@ export default function ClientSchedulePage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!client || !selectedProperty || !selectedSlot || !quote) return
+    if (!client || !selectedProperty || !selectedSlot) return
     setSaving(true)
     setMessage(null)
     setBooked(false)
@@ -191,7 +188,7 @@ export default function ClientSchedulePage() {
                 <div className="mx-2 w-px bg-[var(--line)]" />
                 <div>
                   <p className="text-2xl font-display font-semibold text-[var(--navy)]">
-                    {availableDates.length}
+                    {carouselDates.length}
                   </p>
                   <p className="text-xs text-[var(--muted)]">dias</p>
                 </div>
@@ -252,7 +249,6 @@ export default function ClientSchedulePage() {
                 <div className="grid gap-2 sm:grid-cols-2">
                   {properties.map((p) => {
                     const active = p.id === propertyId
-                    const est = resolvePropertyPrice(p)
                     return (
                       <button
                         key={p.id}
@@ -268,9 +264,9 @@ export default function ClientSchedulePage() {
                         {p.address && (
                           <p className="mt-1 line-clamp-1 text-xs text-[var(--muted)]">{p.address}</p>
                         )}
-                        <p className="mt-2 text-sm font-medium text-[var(--pink-deep)]">
-                          ~ {formatBRL(est.revenue_amount)}
-                        </p>
+                        {p.property_type && (
+                          <p className="mt-2 text-xs capitalize text-[var(--muted)]">{p.property_type}</p>
+                        )}
                       </button>
                     )
                   })}
@@ -281,39 +277,18 @@ export default function ClientSchedulePage() {
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
                   <CalendarDays size={16} /> 2. Escolha o dia
                 </h3>
-                {availableDates.length === 0 ? (
+                {carouselDates.length === 0 ? (
                   <EmptyState text="Não há horários abertos no momento. A equipe ainda vai publicar a agenda." />
                 ) : (
                   <>
-                    <div className="flex gap-2 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      {slotsByDate.map(([date, daySlots]) => {
-                        const active = selectedDate === date
-                        const d = parseISO(date)
-                        return (
-                          <button
-                            key={date}
-                            type="button"
-                            onClick={() => {
-                              setSelectedDate(date)
-                              setSlotId('')
-                            }}
-                            className={`min-w-[4.5rem] shrink-0 rounded-2xl border px-3 py-3 text-center transition ${
-                              active
-                                ? 'border-[var(--navy)] bg-[var(--navy)] text-white shadow-md'
-                                : 'border-[var(--line)] bg-white hover:border-[var(--pink)]'
-                            }`}
-                          >
-                            <span className="block text-xs uppercase opacity-80">
-                              {format(d, 'EEE', { locale: ptBR })}
-                            </span>
-                            <span className="block text-xl font-display font-semibold">
-                              {format(d, 'dd')}
-                            </span>
-                            <span className="block text-[10px] opacity-70">{daySlots.length} vagas</span>
-                          </button>
-                        )
-                      })}
-                    </div>
+                    <DayCarousel
+                      dates={carouselDates}
+                      selectedDate={selectedDate}
+                      onSelectDate={(date) => {
+                        setSelectedDate(date)
+                        setSlotId('')
+                      }}
+                    />
 
                     <h3 className="mb-3 mt-6 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
                       <Clock size={16} /> Horários disponíveis
@@ -392,12 +367,6 @@ export default function ClientSchedulePage() {
                               { locale: ptBR }
                             )
                           : 'Selecione um horário'}
-                      </dd>
-                    </div>
-                    <div className="rounded-xl bg-[var(--soft)] px-3 py-3">
-                      <dt className="text-xs uppercase text-[var(--muted)]">Valor estimado</dt>
-                      <dd className="text-2xl font-display font-semibold text-[var(--navy)]">
-                        {quote ? formatBRL(quote.revenue_amount) : '—'}
                       </dd>
                     </div>
                   </dl>
