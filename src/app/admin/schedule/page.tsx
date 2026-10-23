@@ -260,18 +260,24 @@ export default function AdminSchedulePage() {
     await load()
   }
 
-  async function cancelCleaning(id: string) {
+  async function cancelCleaning(cleaning: Cleaning) {
     if (!window.confirm('Cancelar esta faxina?')) return
     const { error } = await supabase
       .from('cleanings')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-      .eq('id', id)
+      .eq('id', cleaning.id)
     if (error) {
       setMessage(error.message)
       return
     }
+    if (cleaning.availability_slot_id) {
+      await supabase
+        .from('availability_slots')
+        .update({ is_open: true })
+        .eq('id', cleaning.availability_slot_id)
+    }
     setMessage('Faxina cancelada.')
-    if (editingId === id) resetForm()
+    if (editingId === cleaning.id) resetForm()
     await load()
   }
 
@@ -326,7 +332,7 @@ export default function AdminSchedulePage() {
           </Link>
         )}
         {c.status !== 'cancelled' && (
-          <Button type="button" variant="ghost" onClick={() => void cancelCleaning(c.id)}>
+          <Button type="button" variant="ghost" onClick={() => void cancelCleaning(c)}>
             Cancelar
           </Button>
         )}

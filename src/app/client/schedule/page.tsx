@@ -1,11 +1,12 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { format } from 'date-fns'
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { AppShell } from '@/components/AppShell'
 import { Button, Card, EmptyState, Label, Select } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
+import { MIN_CLEANING_DURATION_MINUTES } from '@/lib/availability'
 import { combineDateAndTime, resolvePropertyPrice } from '@/lib/pricing'
 import { supabase } from '@/lib/supabase'
 import {
@@ -23,42 +24,49 @@ export default function ClientSchedulePage() {
   const [propertyId, setPropertyId] = useState('')
   const [slotId, setSlotId] = useState('')
   const [message, setMessage] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    async function load() {
-      if (!user) return
-      const { data: c } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      const clientRow = c as Client | null
-      setClient(clientRow)
-      if (!clientRow) return
+  const load = useCallback(async () => {
+    if (!user) return
+    setLoadError(null)
+    const { data: c } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    const clientRow = c as Client | null
+    setClient(clientRow)
+    if (!clientRow) return
 
-      const [propsRes, slotsRes] = await Promise.all([
-        supabase
-          .from('properties')
-          .select('*')
-          .eq('client_id', clientRow.id)
-          .eq('active', true)
-          .order('label'),
-        supabase
-          .from('availability_slots')
-          .select('*')
-          .eq('is_open', true)
-          .gte('slot_date', format(new Date(), 'yyyy-MM-dd'))
-          .order('slot_date')
-          .order('start_time'),
-      ])
-      const props = (propsRes.data as Property[]) || []
-      setProperties(props)
-      setSlots((slotsRes.data as AvailabilitySlot[]) || [])
-      if (props[0]) setPropertyId(props[0].id)
-    }
-    void load()
+    const today = format(new Date(), 'yyyy-MM-dd')
+    const [propsRes, slotsRes] = await Promise.all([
+      supabase
+        .from('properties')
+        .select('*')
+        .eq('client_id', clientRow.id)
+        .eq('active', true)
+        .order('label'),
+      supabase
+        .from('availability_slots')
+        .select('*')
+        .eq('is_open', true)
+        .gte('slot_date', today)
+        .order('slot_date')
+        .order('start_time'),
+    ])
+    if (propsRes.error) setLoadError(propsRes.error.message)
+    if (slotsRes.error) setLoadError(slotsRes.error.message)
+
+    const props = (propsRes.data as Property[]) || []
+    setProperties(props)
+    setSlots((slotsRes.data as AvailabilitySlot[]) || [])
+    if (props[0]) setPropertyId((prev) => prev || props[0].id)
   }, [user])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   const selectedProperty = useMemo(
     () => properties.find((p) => p.id === propertyId) || null,
@@ -72,52 +80,61 @@ export default function ClientSchedulePage() {
 
   const quote = selectedProperty ? resolvePropertyPrice(selectedProperty) : null
 
+  const slotsByDate = useMemo(() => {
+    const map = new Map<string, AvailabilitySlot[]>()
+    for (const s of slots) {
+      const list = map.get(s.slot_date) || []
+      list.push(s)
+      map.set(s.slot_date, list)
+    }
+    return [...map.entries()]
+  }, [slots])
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (!client || !selectedProperty || !selectedSlot || !quote) return
     setSaving(true)
     setMessage(null)
 
-    const scheduledStart = combineDateAndTime(
-      selectedSlot.slot_date,
-      selectedSlot.start_time
-    )
-    const scheduledEnd = combineDateAndTime(
-      selectedSlot.slot_date,
-      selectedSlot.end_time
-    )
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      setSaving(false)
+      setMessage('Sessão expirada. Entre novamente.')
+      return
+    }
 
-    const { error } = await supabase.from('cleanings').insert({
-      property_id: selectedProperty.id,
-      client_id: client.id,
-      availability_slot_id: selectedSlot.id,
-      scheduled_start: scheduledStart,
-      scheduled_end: scheduledEnd,
-      status: 'requested',
-      pricing_type: quote.pricing_type,
-      unit_price: quote.unit_price,
-      hours: quote.hours,
-      revenue_amount: quote.revenue_amount,
-      employee_pay_amount: 0,
-      notes: 'Solicitação do cliente — aguardando confirmação da admin',
+    const res = await fetch('/api/client/book-cleaning', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ propertyId: selectedProperty.id, slotId: selectedSlot.id }),
     })
+    const payload = (await res.json()) as { error?: string }
 
     setSaving(false)
-    if (error) {
-      setMessage(error.message)
+    if (!res.ok) {
+      setMessage(payload.error || 'Não foi possível agendar.')
+      if (res.status === 409) await load()
       return
     }
 
     setMessage(
-      'Solicitação enviada! Fica pendente até a admin aprovar (com dia e hora de início).'
+      'Solicitação enviada! A vaga foi reservada até a admin confirmar a faxina.'
     )
     setSlotId('')
+    await load()
   }
 
   return (
     <AppShell title="Agendar limpeza">
       {!client ? (
         <EmptyState text="Conta de cliente não vinculada." />
+      ) : properties.length === 0 ? (
+        <EmptyState text="Cadastre um imóvel antes de agendar." />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
           <Card>
@@ -142,10 +159,10 @@ export default function ClientSchedulePage() {
                   <option value="">Selecione</option>
                   {slots.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {format(combineDateAndTime(s.slot_date, s.start_time), "dd/MM HH:mm", {
+                      {format(combineDateAndTime(s.slot_date, s.start_time), "dd/MM (EEE) HH:mm", {
                         locale: ptBR,
                       })}
-                      –{s.end_time.slice(0, 5)}
+                      – {s.end_time.slice(0, 5)} ({MIN_CLEANING_DURATION_MINUTES / 60} h)
                     </option>
                   ))}
                 </Select>
@@ -155,34 +172,49 @@ export default function ClientSchedulePage() {
                   Valor estimado: <strong>{formatBRL(quote.revenue_amount)}</strong>
                 </p>
               )}
-              {message && <p className="text-sm text-[var(--muted)]">{message}</p>}
-              <Button type="submit" disabled={saving || !slotId || !propertyId}>
+              {(message || loadError) && (
+                <p className="text-sm text-[var(--muted)]">{message || loadError}</p>
+              )}
+              <Button type="submit" disabled={saving || !slotId || !propertyId || slots.length === 0}>
                 {saving ? 'Enviando…' : 'Solicitar faxina'}
               </Button>
             </form>
           </Card>
 
           <div>
-            <h2 className="mb-3 text-lg font-semibold">Calendário de vagas</h2>
+            <h2 className="mb-1 text-lg font-semibold">Horários abertos</h2>
+            <p className="mb-3 text-sm text-[var(--muted)]">
+              Cada vaga reserva {MIN_CLEANING_DURATION_MINUTES / 60} horas de limpeza. Toque em um horário
+              para selecionar.
+            </p>
             {slots.length === 0 ? (
-              <EmptyState text="Não há horários abertos no momento." />
+              <EmptyState text="Não há horários abertos no momento. A equipe ainda vai publicar a agenda — tente de novo em breve." />
             ) : (
-              <div className="space-y-2">
-                {slots.map((s) => (
-                  <Card
-                    key={s.id}
-                    className={`cursor-pointer ${slotId === s.id ? 'border-[var(--brand)]' : ''}`}
-                    onClick={() => setSlotId(s.id)}
-                  >
-                    <p className="font-medium">
-                      {format(combineDateAndTime(s.slot_date, s.start_time), "EEEE, dd/MM", {
-                        locale: ptBR,
-                      })}
-                    </p>
-                    <p className="text-sm text-[var(--muted)]">
-                      {s.start_time.slice(0, 5)} – {s.end_time.slice(0, 5)}
-                    </p>
-                  </Card>
+              <div className="space-y-5">
+                {slotsByDate.map(([date, daySlots]) => (
+                  <div key={date}>
+                    <h3 className="mb-2 font-medium capitalize">
+                      {format(parseISO(date), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                    </h3>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {daySlots.map((s) => (
+                        <Card
+                          key={s.id}
+                          className={`cursor-pointer transition-colors ${
+                            slotId === s.id ? 'border-[var(--pink-deep)] ring-1 ring-[var(--pink-deep)]' : ''
+                          }`}
+                          onClick={() => setSlotId(s.id)}
+                        >
+                          <p className="font-medium">
+                            {s.start_time.slice(0, 5)} – {s.end_time.slice(0, 5)}
+                          </p>
+                          <p className="text-sm text-[var(--muted)]">
+                            Duração mínima {MIN_CLEANING_DURATION_MINUTES / 60} h
+                          </p>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

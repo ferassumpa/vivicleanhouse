@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale'
 import { AppShell } from '@/components/AppShell'
 import { Button, Card, EmptyState, Input, Label } from '@/components/ui'
 import { useAuth } from '@/contexts/AuthContext'
+import { defaultEndTimeFromStart, validateSlotDuration } from '@/lib/availability'
 import { combineDateAndTime } from '@/lib/pricing'
 import { supabase } from '@/lib/supabase'
 import type { AvailabilitySlot, Employee } from '@/lib/types'
@@ -16,7 +17,7 @@ export default function EmployeeAvailabilityPage() {
   const [slots, setSlots] = useState<AvailabilitySlot[]>([])
   const [slotDate, setSlotDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [startTime, setStartTime] = useState('09:00')
-  const [endTime, setEndTime] = useState('12:00')
+  const [endTime, setEndTime] = useState(defaultEndTimeFromStart('09:00'))
   const [message, setMessage] = useState<string | null>(null)
 
   async function load(empId: string) {
@@ -49,6 +50,11 @@ export default function EmployeeAvailabilityPage() {
     e.preventDefault()
     if (!employee || !user) return
     setMessage(null)
+    const durationErr = validateSlotDuration(startTime, endTime)
+    if (durationErr) {
+      setMessage(durationErr)
+      return
+    }
     const { error } = await supabase.from('availability_slots').insert({
       slot_date: slotDate,
       start_time: startTime,
@@ -80,7 +86,16 @@ export default function EmployeeAvailabilityPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label>Início</Label>
-                  <Input type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                  <Input
+                    type="time"
+                    required
+                    value={startTime}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setStartTime(v)
+                      setEndTime(defaultEndTimeFromStart(v))
+                    }}
+                  />
                 </div>
                 <div>
                   <Label>Fim</Label>
