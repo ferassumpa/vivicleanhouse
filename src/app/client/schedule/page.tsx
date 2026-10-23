@@ -96,29 +96,20 @@ export default function ClientSchedulePage() {
     setSaving(true)
     setMessage(null)
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session?.access_token) {
-      setSaving(false)
-      setMessage('Sessão expirada. Entre novamente.')
-      return
-    }
-
-    const res = await fetch('/api/client/book-cleaning', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ propertyId: selectedProperty.id, slotId: selectedSlot.id }),
+    const { error } = await supabase.rpc('book_cleaning_request', {
+      p_property_id: selectedProperty.id,
+      p_slot_id: selectedSlot.id,
     })
-    const payload = (await res.json()) as { error?: string }
 
     setSaving(false)
-    if (!res.ok) {
-      setMessage(payload.error || 'Não foi possível agendar.')
-      if (res.status === 409) await load()
+    if (error) {
+      let msg = error.message
+      if (msg.includes('Could not find the function') || error.code === 'PGRST202') {
+        msg =
+          'Agendamento ainda não está ativo no banco. Peça para rodar docs/sql/009_client_book_cleaning_rpc.sql no Supabase.'
+      }
+      setMessage(msg)
+      if (msg.includes('disponível') || msg.includes('reservado')) await load()
       return
     }
 

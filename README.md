@@ -23,6 +23,7 @@ Stack: **Next.js**, **Supabase**, **Vercel (gru1)**, **Capacitor**, UI em **PT-B
    - `docs/sql/006_whatsapp_templates.sql`
    - `docs/sql/007_fix_whatsapp_emoji.sql` (se o emoji da mensagem virar “?”)
    - `docs/sql/008_cleanings_admin_edit_guard.sql`
+   - `docs/sql/009_client_book_cleaning_rpc.sql` (cliente reservar horário sem service role)
 2. Copie `.env.example` → `.env.local` e preencha as chaves.
 3. Em **Authentication → URL Configuration** no Supabase, adicione:
    - Site URL: `http://localhost:3000` (e depois a URL do Vercel)
@@ -49,7 +50,8 @@ Stack: **Next.js**, **Supabase**, **Vercel (gru1)**, **Capacitor**, UI em **PT-B
 ## Vercel
 
 - Framework Next.js, região `gru1` (`vercel.json`)
-- Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `NEXT_PUBLIC_APP_URL`
+- Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL`
+- Opcional (só vincular login de faxineira): `SUPABASE_SERVICE_KEY` ou `SUPABASE_SERVICE_ROLE_KEY`
 
 ## Capacitor (Android)
 

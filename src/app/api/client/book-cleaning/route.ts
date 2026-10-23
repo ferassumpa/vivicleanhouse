@@ -1,8 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { combineDateAndTime, resolvePropertyPrice } from '@/lib/pricing'
-import { getSupabaseAdmin } from '@/lib/supabase'
-import type { AvailabilitySlot, Property } from '@/lib/types'
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,83 +32,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Informe imóvel e horário' }, { status: 400 })
     }
 
-    const { data: clientRow, error: clientErr } = await caller
-      .from('clients')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    if (clientErr || !clientRow) {
-      return NextResponse.json({ error: 'Conta de cliente não vinculada' }, { status: 403 })
-    }
-
-    const { data: property, error: propErr } = await caller
-      .from('properties')
-      .select('*')
-      .eq('id', propertyId)
-      .eq('client_id', clientRow.id)
-      .maybeSingle()
-    if (propErr || !property) {
-      return NextResponse.json({ error: 'Imóvel inválido' }, { status: 400 })
-    }
-
-    const admin = getSupabaseAdmin()
-
-    const { data: slot, error: slotErr } = await admin
-      .from('availability_slots')
-      .select('*')
-      .eq('id', slotId)
-      .eq('is_open', true)
-      .maybeSingle()
-
-    if (slotErr || !slot) {
-      return NextResponse.json(
-        { error: 'Esse horário não está mais disponível. Escolha outro.' },
-        { status: 409 }
-      )
-    }
-
-    const slotRow = slot as AvailabilitySlot
-    const quote = resolvePropertyPrice(property as Property)
-
-    const { data: closed, error: closeErr } = await admin
-      .from('availability_slots')
-      .update({ is_open: false })
-      .eq('id', slotId)
-      .eq('is_open', true)
-      .select('id')
-      .maybeSingle()
-
-    if (closeErr || !closed) {
-      return NextResponse.json(
-        { error: 'Esse horário acabou de ser reservado. Atualize a página.' },
-        { status: 409 }
-      )
-    }
-
-    const scheduledStart = combineDateAndTime(slotRow.slot_date, slotRow.start_time)
-    const scheduledEnd = combineDateAndTime(slotRow.slot_date, slotRow.end_time)
-
-    const { error: insertErr } = await admin.from('cleanings').insert({
-      property_id: propertyId,
-      client_id: clientRow.id,
-      availability_slot_id: slotId,
-      scheduled_start: scheduledStart,
-      scheduled_end: scheduledEnd,
-      status: 'requested',
-      pricing_type: quote.pricing_type,
-      unit_price: quote.unit_price,
-      hours: quote.hours,
-      revenue_amount: quote.revenue_amount,
-      employee_pay_amount: 0,
-      notes: 'Solicitação do cliente — aguardando confirmação da admin',
+    const { data: cleaningId, error } = await caller.rpc('book_cleaning_request', {
+      p_property_id: propertyId,
+      p_slot_id: slotId,
     })
 
-    if (insertErr) {
-      await admin.from('availability_slots').update({ is_open: true }).eq('id', slotId)
-      return NextResponse.json({ error: insertErr.message }, { status: 400 })
+    if (error) {
+      const msg = error.message || ''
+      if (msg.includes('Could not find the function') || error.code === 'PGRST202') {
+        return NextResponse.json(
+          {
+            error:
+              'Função de agendamento não instalada no Supabase. Rode o arquivo docs/sql/009_client_book_cleaning_rpc.sql no SQL Editor.',
+          },
+          { status: 503 }
+        )
+      }
+      const status = msg.includes('disponível') || msg.includes('reservado') ? 409 : 400
+      return NextResponse.json({ error: msg }, { status })
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, cleaningId })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erro interno'
     return NextResponse.json({ error: msg }, { status: 500 })

@@ -26,7 +26,9 @@ export const supabase = createClient(
 )
 
 export function getSupabaseAdmin() {
-  const adminKey = process.env.SUPABASE_SERVICE_KEY
+  const adminKey =
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!supabaseUrl || !adminKey) {
     throw new Error('Missing Supabase admin env vars')
   }
