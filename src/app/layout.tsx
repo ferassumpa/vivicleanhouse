@@ -18,12 +18,21 @@ export const metadata: Metadata = {
   description: 'Gestão de faxinas para estúdios e apartamentos',
   applicationName: 'Vivi Clean house',
   icons: { icon: '/logo.png' },
+  appleWebApp: {
+    capable: true,
+    title: 'Vivi Clean house',
+    statusBarStyle: 'default',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 }
 
 export const viewport: Viewport = {
   themeColor: '#f4a7b9',
   width: 'device-width',
   initialScale: 1,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({

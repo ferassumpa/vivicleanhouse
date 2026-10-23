@@ -161,41 +161,41 @@ export default function ClientSchedulePage() {
       ) : properties.length === 0 ? (
         <EmptyState text="Cadastre um imóvel antes de agendar." />
       ) : (
-        <div className="space-y-6">
-          <div className="relative overflow-hidden rounded-3xl border border-[var(--line)] bg-gradient-to-br from-[var(--pink-soft)] via-white to-[var(--soft)] p-6 shadow-sm md:p-8">
-            <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-[var(--pink)]/30 blur-2xl" />
-            <div className="relative flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="flex items-center gap-2 text-sm font-medium text-[var(--pink-deep)]">
-                  <Sparkles size={18} /> Vivi Clean house
+        <form id="client-schedule-form" className="space-y-5 md:space-y-6" onSubmit={onSubmit}>
+          <div className="relative overflow-hidden rounded-2xl border border-[var(--line)] bg-gradient-to-br from-[var(--pink-soft)] via-white to-[var(--soft)] p-4 shadow-sm md:rounded-3xl md:p-8">
+            <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[var(--pink)]/30 blur-2xl md:h-40 md:w-40" />
+            <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-xs font-medium text-[var(--pink-deep)] md:text-sm">
+                  <Sparkles size={16} /> Vivi Clean house
                 </p>
-                <h2 className="mt-1 font-display text-2xl text-[var(--navy)] md:text-3xl">
+                <h2 className="mt-1 font-display text-xl text-[var(--navy)] md:text-3xl">
                   Reserve sua próxima faxina
                 </h2>
-                <p className="mt-2 max-w-lg text-sm text-[var(--muted)]">
-                  Horários liberados pela equipe. Após solicitar, acompanhe o status em{' '}
+                <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
+                  Horários liberados pela equipe. Acompanhe em{' '}
                   <Link href="/client/bookings" className="font-semibold text-[var(--pink-deep)] hover:underline">
                     Minhas faxinas
                   </Link>
                   .
                 </p>
               </div>
-              <div className="flex gap-2 rounded-2xl bg-white/80 px-4 py-3 text-center shadow-sm backdrop-blur">
+              <div className="flex shrink-0 gap-3 self-start rounded-2xl bg-white/80 px-4 py-2.5 text-center shadow-sm backdrop-blur">
                 <div>
-                  <p className="text-2xl font-display font-semibold text-[var(--navy)]">{slots.length}</p>
-                  <p className="text-xs text-[var(--muted)]">vagas abertas</p>
+                  <p className="text-xl font-display font-semibold text-[var(--navy)] md:text-2xl">{slots.length}</p>
+                  <p className="text-[10px] text-[var(--muted)] md:text-xs">vagas</p>
                 </div>
-                <div className="mx-2 w-px bg-[var(--line)]" />
+                <div className="w-px bg-[var(--line)]" />
                 <div>
-                  <p className="text-2xl font-display font-semibold text-[var(--navy)]">
+                  <p className="text-xl font-display font-semibold text-[var(--navy)] md:text-2xl">
                     {carouselDates.length}
                   </p>
-                  <p className="text-xs text-[var(--muted)]">dias</p>
+                  <p className="text-[10px] text-[var(--muted)] md:text-xs">dias</p>
                 </div>
               </div>
             </div>
 
-            <ol className="relative mt-6 flex flex-wrap gap-2 md:gap-4">
+            <ol className="relative mt-4 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] md:mt-6 md:flex-wrap md:overflow-visible [&::-webkit-scrollbar]:hidden">
               {[
                 { n: 1, label: 'Imóvel', icon: <Home size={16} /> },
                 { n: 2, label: 'Dia e hora', icon: <CalendarDays size={16} /> },
@@ -203,16 +203,16 @@ export default function ClientSchedulePage() {
               ].map((s) => (
                 <li
                   key={s.n}
-                  className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition md:gap-2 md:px-3 md:text-sm ${
                     step >= s.n
                       ? 'bg-[var(--navy)] text-white'
                       : 'bg-white/70 text-[var(--muted)]'
                   }`}
                 >
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs">
-                    {step > s.n ? <Check size={14} /> : s.n}
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px] md:h-6 md:w-6 md:text-xs">
+                    {step > s.n ? <Check size={12} /> : s.n}
                   </span>
-                  {s.icon}
+                  <span className="hidden sm:inline-flex">{s.icon}</span>
                   {s.label}
                 </li>
               ))}
@@ -246,7 +246,7 @@ export default function ClientSchedulePage() {
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
                   <Home size={16} /> 1. Qual imóvel?
                 </h3>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {properties.map((p) => {
                     const active = p.id === propertyId
                     return (
@@ -254,7 +254,7 @@ export default function ClientSchedulePage() {
                         key={p.id}
                         type="button"
                         onClick={() => setPropertyId(p.id)}
-                        className={`rounded-2xl border p-4 text-left transition ${
+                        className={`min-h-[4.5rem] rounded-2xl border p-4 text-left transition active:scale-[0.99] ${
                           active
                             ? 'border-[var(--pink-deep)] bg-white shadow-md ring-2 ring-[var(--pink-soft)]'
                             : 'border-[var(--line)] bg-white/90 hover:border-[var(--pink)]'
@@ -296,7 +296,7 @@ export default function ClientSchedulePage() {
                     {slotsForSelectedDay.length === 0 ? (
                       <p className="text-sm text-[var(--muted)]">Selecione um dia com vagas.</p>
                     ) : (
-                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         {slotsForSelectedDay.map((s) => {
                           const active = slotId === s.id
                           return (
@@ -305,7 +305,7 @@ export default function ClientSchedulePage() {
                               type="button"
                               layout
                               onClick={() => setSlotId(s.id)}
-                              className={`rounded-2xl border p-4 text-left transition ${
+                              className={`min-h-[4.25rem] rounded-2xl border p-4 text-left transition active:scale-[0.99] ${
                                 active
                                   ? 'border-[var(--pink-deep)] bg-gradient-to-br from-white to-[var(--soft)] shadow-md ring-2 ring-[var(--pink-soft)]'
                                   : 'border-[var(--line)] bg-white hover:border-[var(--pink)]'
@@ -332,67 +332,123 @@ export default function ClientSchedulePage() {
                   </>
                 )}
               </section>
+
+              <ScheduleSummary
+                className="lg:hidden"
+                selectedProperty={selectedProperty}
+                selectedSlot={selectedSlot}
+                message={message}
+                loadError={loadError}
+                saving={saving}
+                slotId={slotId}
+                propertyId={propertyId}
+                slotsLength={slots.length}
+                showSubmit
+              />
             </div>
 
-            <aside className="lg:sticky lg:top-6 lg:self-start">
-              <Card className="border-[var(--line)] bg-white/95 p-0 shadow-lg">
-                <div className="rounded-t-2xl bg-[var(--navy)] px-5 py-4 text-white">
-                  <p className="text-xs font-semibold uppercase tracking-wide opacity-80">Resumo</p>
-                  <p className="font-display text-xl">Sua solicitação</p>
-                </div>
-                <form className="space-y-4 p-5" onSubmit={onSubmit}>
-                  <div className="hidden">
-                    <Label>Imóvel</Label>
-                    <Select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} required>
-                      {properties.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-
-                  <dl className="space-y-3 text-sm">
-                    <div>
-                      <dt className="text-xs uppercase text-[var(--muted)]">Imóvel</dt>
-                      <dd className="font-medium">{selectedProperty?.label || '—'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase text-[var(--muted)]">Data e hora</dt>
-                      <dd className="font-medium">
-                        {selectedSlot
-                          ? format(
-                              combineDateAndTime(selectedSlot.slot_date, selectedSlot.start_time),
-                              "EEEE, dd/MM · HH:mm",
-                              { locale: ptBR }
-                            )
-                          : 'Selecione um horário'}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  {(message || loadError) && (
-                    <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                      {message || loadError}
-                    </p>
-                  )}
-
-                  <Button
-                    type="submit"
-                    className="w-full py-3"
-                    disabled={saving || !slotId || !propertyId || slots.length === 0}
-                  >
-                    {saving ? 'Enviando…' : 'Solicitar faxina'}
-                  </Button>
-                  <p className="text-center text-xs text-[var(--muted)]">
-                    Status inicial: aguardando confirmação da admin
-                  </p>
-                </form>
-              </Card>
+            <aside className="hidden lg:block lg:sticky lg:top-6 lg:self-start">
+              <ScheduleSummary
+                selectedProperty={selectedProperty}
+                selectedSlot={selectedSlot}
+                message={message}
+                loadError={loadError}
+                saving={saving}
+                slotId={slotId}
+                propertyId={propertyId}
+                slotsLength={slots.length}
+                showSubmit
+              />
             </aside>
           </div>
-        </div>
+
+          <div className="hidden">
+            <Label>Imóvel</Label>
+            <Select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} required>
+              {properties.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </form>
       )}
     </AppShell>
+  )
+}
+
+function ScheduleSummary({
+  selectedProperty,
+  selectedSlot,
+  message,
+  loadError,
+  saving,
+  slotId,
+  propertyId,
+  slotsLength,
+  showSubmit,
+  className = '',
+}: {
+  selectedProperty: Property | null
+  selectedSlot: AvailabilitySlot | null
+  message: string | null
+  loadError: string | null
+  saving: boolean
+  slotId: string
+  propertyId: string
+  slotsLength: number
+  showSubmit?: boolean
+  className?: string
+}) {
+  return (
+    <Card className={`border-[var(--line)] bg-white/95 p-0 shadow-lg ${className}`}>
+      <div className="rounded-t-2xl bg-[var(--navy)] px-4 py-3 text-white md:px-5 md:py-4">
+        <p className="text-[10px] font-semibold uppercase tracking-wide opacity-80 md:text-xs">Resumo</p>
+        <p className="font-display text-lg md:text-xl">Sua solicitação</p>
+      </div>
+      <div className="space-y-4 p-4 md:p-5">
+        <dl className="space-y-3 text-sm">
+          <div>
+            <dt className="text-xs uppercase text-[var(--muted)]">Imóvel</dt>
+            <dd className="font-medium">{selectedProperty?.label || '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase text-[var(--muted)]">Data e hora</dt>
+            <dd className="font-medium leading-snug">
+              {selectedSlot
+                ? format(
+                    combineDateAndTime(selectedSlot.slot_date, selectedSlot.start_time),
+                    "EEEE, dd/MM · HH:mm",
+                    { locale: ptBR }
+                  )
+                : 'Selecione um horário'}
+            </dd>
+          </div>
+        </dl>
+
+        {(message || loadError) && (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {message || loadError}
+          </p>
+        )}
+
+        {showSubmit && (
+          <>
+            <Button
+              type="submit"
+              form="client-schedule-form"
+              className="min-h-12 w-full py-3 text-base"
+              disabled={saving || !slotId || !propertyId || slotsLength === 0}
+            >
+              {saving ? 'Enviando…' : 'Solicitar faxina'}
+            </Button>
+            <p className="text-center text-xs text-[var(--muted)]">
+              Aguardando confirmação da equipe
+            </p>
+          </>
+        )}
+      </div>
+    </Card>
   )
 }

@@ -31,11 +31,19 @@
   --font-display: var(--font-display);
 }
 
+html {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   background: var(--bg-glow);
   color: var(--ink);
   font-family: var(--font-body), ui-sans-serif, sans-serif;
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .font-display {

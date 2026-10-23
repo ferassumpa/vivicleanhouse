@@ -23,23 +23,24 @@ export function DayCarousel({ dates, selectedDate, onSelectDate }: DayCarouselPr
   }, [])
 
   useEffect(() => {
-    if (!selectedDate || !scrollerRef.current) return
-    const pill = scrollerRef.current.querySelector(
-      `[data-date="${selectedDate}"]`
-    ) as HTMLElement | null
-    pill?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+    const el = scrollerRef.current
+    if (!selectedDate || !el) return
+    const pill = el.querySelector(`[data-date="${selectedDate}"]`) as HTMLElement | null
+    if (!pill) return
+    const target = pill.offsetLeft - el.clientWidth / 2 + pill.clientWidth / 2
+    el.scrollTo({ left: Math.max(0, target), behavior: 'smooth' })
   }, [selectedDate, dates.length])
 
   if (dates.length === 0) return null
 
   return (
-    <div className="relative select-none">
+    <div className="relative w-full max-w-full select-none overflow-hidden">
       {dates.length > 1 && (
         <>
           <button
             type="button"
             aria-label="Ver dias anteriores"
-            className="absolute left-0 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--line)] bg-white/95 text-[var(--navy)] shadow-md backdrop-blur active:scale-95"
+            className="absolute left-0 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--line)] bg-white/95 text-[var(--navy)] shadow-md backdrop-blur active:scale-95"
             onClick={() => scrollStep(-1)}
           >
             <ChevronLeft size={20} />
@@ -47,7 +48,7 @@ export function DayCarousel({ dates, selectedDate, onSelectDate }: DayCarouselPr
           <button
             type="button"
             aria-label="Ver próximos dias"
-            className="absolute right-0 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--line)] bg-white/95 text-[var(--navy)] shadow-md backdrop-blur active:scale-95"
+            className="absolute right-0 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--line)] bg-white/95 text-[var(--navy)] shadow-md backdrop-blur active:scale-95"
             onClick={() => scrollStep(1)}
           >
             <ChevronRight size={20} />
